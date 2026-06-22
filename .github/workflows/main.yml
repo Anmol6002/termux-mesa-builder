@@ -16,11 +16,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
-          sudo apt-get clean
-
+    
       - name: Checkout termux-packages
         run: git clone --depth 1 https://github.com/termux/termux-packages.git
 
