@@ -10,7 +10,7 @@ on:
       branch:
         description: 'Branch name (e.g. adreno-main)'
         required: true
-        default: 'adreno-main'
+        default: 'dev/adreno-main'
 
 jobs:
   build:
@@ -50,7 +50,8 @@ jobs:
         run: |
           cd termux-packages
           # Start the build. Termux automatically pulls its Docker image and cross-compiles!
-          ./build-package.sh -a aarch64 mesa
+          ./scripts/run-docker.sh
+          ./build-package.sh -f -I mesa
 
       - name: Upload DEB packages
         uses: actions/upload-artifact@v4
