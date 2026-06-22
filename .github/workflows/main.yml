@@ -79,6 +79,47 @@ jobs:
           cd ../..
           rm -rf test_extract
 
+      - name: Inject C99 and Epoll Header Python Patch
+        run: |
+          cd termux-packages
+          
+          # This appends your exact Python script logic to Termux's post-extract phase
+          cat << 'EOF' >> packages/mesa/build.sh
+
+          termux_step_post_extract_package() {
+              echo "Executing Python macro and header patches on os_file.c..."
+              python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("src/util/os_file.c")
+          if p.exists():
+              s = p.read_text()
+
+              # Ensure _GNU_SOURCE is at the absolute top
+              if "_GNU_SOURCE" not in s[:300]:
+                  s = "#ifndef _GNU_SOURCE\n#define _GNU_SOURCE\n#endif\n" + s
+
+              # Safe injection of epoll header
+              if "#include <sys/epoll.h>" not in s:
+                  if "#include <unistd.h>" in s:
+                      s = s.replace(
+                          "#include <unistd.h>",
+                          "#include <unistd.h>\n#ifdef linux\n#include <sys/epoll.h>\n#endif"
+                      )
+                  else:
+                      s = s.replace(
+                          "#include <errno.h>",
+                          "#include <errno.h>\n#ifdef linux\n#include <sys/epoll.h>\n#endif"
+                      )
+
+              p.write_text(s)
+              print("os_file.c successfully patched.")
+          else:
+              print("Warning: src/util/os_file.c not found!")
+          PY
+          }
+          EOF
+       
       - name: Build Mesa package
         run: |
           cd termux-packages
