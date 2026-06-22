@@ -1,0 +1,63 @@
+name: Build Termux Mesa
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo_url:
+        description: 'Mesa GitHub Repository (e.g. lfdevs/mesa-for-android-container)'
+        required: true
+        default: 'Anmol6002/mesa-for-android-container'
+      branch:
+        description: 'Branch name (e.g. adreno-main)'
+        required: true
+        default: 'adreno-main'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo apt-get clean
+
+      - name: Checkout termux-packages
+        run: git clone --depth 1 https://github.com/termux/termux-packages.git
+
+      - name: Setup custom Mesa source
+        run: |
+          cd termux-packages
+          
+          
+          # Set URLs based on GitHub Action inputs
+          REPO="${{ github.event.inputs.repo_url }}"
+          BRANCH="${{ github.event.inputs.branch }}"
+          TAR_URL="https://github.com/$REPO/archive/refs/heads/$BRANCH.tar.gz"
+          
+          echo "Downloading source to calculate SHA256..."
+          wget -q "$TAR_URL" -O mesa.tar.gz
+          SHA256=$(sha256sum mesa.tar.gz | awk '{print $1}')
+          
+          # GitHub tarballs extract into a folder named RepoName-BranchName
+          REPO_NAME=$(basename $REPO)
+          FOLDER_NAME="${REPO_NAME}-${BRANCH}"
+          
+          echo "Patching Termux build.sh to use custom source..."
+          sed -i "s|^TERMUX_PKG_VERSION=.*|TERMUX_PKG_VERSION=26.2.0|g" packages/mesa/build.sh
+          sed -i "s|^TERMUX_PKG_SRCURL=.*|TERMUX_PKG_SRCURL=$TAR_URL|g" packages/mesa/build.sh
+          sed -i "s|^TERMUX_PKG_SHA256=.*|TERMUX_PKG_SHA256=$SHA256|g" packages/mesa/build.sh
+          
+          # Inject foldername override so Termux finds the extracted source
+          sed -i "/^TERMUX_PKG_SHA256=/a TERMUX_PKG_FOLDERNAME=$FOLDER_NAME" packages/mesa/build.sh
+
+      - name: Build Mesa package
+        run: |
+          cd termux-packages
+          # Start the build. Termux automatically pulls its Docker image and cross-compiles!
+          ./build-package.sh -a aarch64 mesa
+
+      - name: Upload DEB packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: termux-mesa-debs
+          path: termux-packages/debs/*.deb
