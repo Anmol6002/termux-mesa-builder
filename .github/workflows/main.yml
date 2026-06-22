@@ -50,11 +50,10 @@ jobs:
         run: |
           cd termux-packages
           # Start the build. Termux automatically pulls its Docker image and cross-compiles!
-          ./scripts/run-docker.sh
-          ./build-package.sh -f -I mesa
+          ./scripts/run-docker.sh ./build-package.sh -a aarch64 -f -I mesa
 
       - name: Upload DEB packages
         uses: actions/upload-artifact@v4
         with:
           name: termux-mesa-debs
-          path: termux-packages/debs/*.deb
+          path: termux-packages/output/*.deb
