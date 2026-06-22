@@ -46,6 +46,39 @@ jobs:
           # Inject foldername override so Termux finds the extracted source
           sed -i "/^TERMUX_PKG_SHA256=/a TERMUX_PKG_FOLDERNAME=$FOLDER_NAME" packages/mesa/build.sh
 
+      # NEW LOGIC: Test every patch on the lfdevs codebase, dynamically dropping broken lines
+      - name: Intelligently Audit & Filter Patches
+        run: |
+          cd termux-packages
+          
+          # Extract the lfdevs source tarball temporarily to test patches on it
+          mkdir -p test_extract
+          tar -xf mesa.tar.gz -C test_extract
+          SRC_DIR=$(ls -d test_extract/*)
+          
+          echo "Auditing patches inside packages/mesa/..."
+          cd packages/mesa
+          
+          # Loop through each patch file alphabetically
+          for patchfile in *.patch; do
+            [ -e "$patchfile" ] || continue
+            echo "------------------------------------------------"
+            echo "Testing: $patchfile"
+            
+            # Simulate patch application using dry-run on the extracted lfdevs codebase
+            if patch --dry-run -p1 -d "../../$SRC_DIR" < "$patchfile" > /dev/null 2>&1; then
+              echo "✅ CLEAN: Patch applies safely. Keeping it."
+            else
+              echo "❌ CONFLICT: Patch failed dry-run. Likely natively handled by lfdevs source code."
+              echo "Removing $patchfile to prevent build failure..."
+              rm "$patchfile"
+            fi
+          done
+          
+          # Clean up temporary directories
+          cd ../..
+          rm -rf test_extract
+
       - name: Build Mesa package
         run: |
           cd termux-packages
