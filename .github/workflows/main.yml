@@ -79,16 +79,27 @@ jobs:
           cd ../..
           rm -rf test_extract
 
-      # FIX: Pass continuous build parameters via Termux's environment variable collector
-      - name: Inject Global Epoll Headers for Clang
+      - name: Fix Missing Epoll Headers (Direct Source Patch)
         run: |
-          cd termux-packages
+          cd termux-packages/packages/mesa
           
-          # We use sed to append our configuration flags directly to Termux's variable collector 
-          # inside build.sh instead of mapping fragile shell functions.
-          echo "Injecting -include sys/epoll.h directly into C/C++ compilation environment..."
-          sed -i '/TERMUX_PKG_SHA256=/a TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" -Dc_args='\''-include sys/epoll.h'\'' -Dcpp_args='\''-include sys/epoll.h'\''"' packages/mesa/build.sh
-          
+          # We append a custom function to Termux's build.sh
+          # This function runs after the source is extracted but before building.
+          cat >> build.sh <<'EOF'
+
+          termux_step_post_get_source() {
+              echo "MANUAL FIX: Injecting sys/epoll.h into src/util/os_file.c"
+              # Insert the include at the top of the file
+              sed -i '1i #include <sys/epoll.h>' src/util/os_file.c
+              
+              # Optional: Fix other common missing headers in android-container forks
+              if [ -f "src/util/os_file_notify.c" ]; then
+                  sed -i '1i #include <sys/epoll.h>' src/util/os_file_notify.c
+              fi
+          }
+          EOF
+          echo "Successfully injected source-patching hook into build.sh"
+         
       - name: Build Mesa package
         run: |
           cd termux-packages
