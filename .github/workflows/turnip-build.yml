@@ -1,4 +1,4 @@
-name: Build Termux Mesa
+name: Build Termux Mesa Turnip
 
 on:
   workflow_dispatch:
