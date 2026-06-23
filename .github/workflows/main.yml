@@ -112,7 +112,6 @@ jobs:
               echo "Implementing Patch 0018: Fixing image layouts for Turnip..."
               sed -i 's/if (unlikely(managed_transition))/if (true) \/* Patch 0018 override *\//' src/gallium/drivers/zink/zink_screen.c
               fi
-              echo "Applying manual fixes for logic in failed Patch 0007..."
               # FIX A: Redirect /tmp to Termux usr/tmp (Solves OUT_OF_HOST_MEMORY)
               echo "Redirecting hardcoded /tmp paths..."
               grep -rl "/tmp" src/ | xargs -r sed -i "s|/tmp|/data/data/com.termux/files/usr/tmp|g"
