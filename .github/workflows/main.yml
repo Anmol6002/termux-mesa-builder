@@ -50,28 +50,40 @@ jobs:
           # Inject foldername override so Termux finds the extracted source
           sed -i "/^TERMUX_PKG_SHA256=/a TERMUX_PKG_FOLDERNAME=$FOLDER_NAME" packages/mesa/build.sh
 
-
-      - name: Fix Missing Epoll Headers (Direct Source Patch)
+      - name: Inject Essential Source Repairs
         run: |
           cd termux-packages/packages/mesa
           
-          # We append a custom function to Termux's build.sh
-          # This function runs after the source is extracted but before building.
           cat >> build.sh <<'EOF'
 
           termux_step_post_get_source() {
-              echo "MANUAL FIX: Injecting sys/epoll.h into src/util/os_file.c"
-              # Insert the include at the top of the file
-              sed -i '1i #include <sys/epoll.h>' src/util/os_file.c
-              
-              # Optional: Fix other common missing headers in android-container forks
-              if [ -f "src/util/os_file_notify.c" ]; then
-                  sed -i '1i #include <sys/epoll.h>' src/util/os_file_notify.c
-              fi
+          echo "Applying manual fixes for logic in failed Patch 0007..."
+
+          # 1. FIX MUTEX TYPE MISMATCH in tu_shader.cc (The error that stopped your build)
+          if [ -f "src/freedreno/vulkan/tu_shader.cc" ]; then
+          echo "Repairing C11 mutex calls in tu_shader.cc..."
+          # We use a broad search-and-replace to catch every instance of the mismatch
+          sed -i 's/pthread_mutex_lock(&dev->pipeline_mutex)/mtx_lock(\&dev->pipeline_mutex)/g' src/freedreno/vulkan/tu_shader.cc
+          sed -i 's/pthread_mutex_unlock(&dev->pipeline_mutex)/mtx_unlock(\&dev->pipeline_mutex)/g' src/freedreno/vulkan/tu_shader.cc
+          fi
+          # 2. FIX WAYLAND WSI MUTEX (Also part of Patch 0007)
+          if [ -f "src/vulkan/wsi/wsi_common_wayland.c" ]; then
+          echo "Repairing C11 mutex calls in wsi_common_wayland.c..."
+          sed -i 's/pthread_mutex_lock(&chain->present_ids.lock)/mtx_lock(\&chain->present_ids.lock)/g' src/vulkan/wsi/wsi_common_wayland.c
+          sed -i 's/pthread_mutex_unlock(&chain->present_ids.lock)/mtx_unlock(\&chain->present_ids.lock)/g' src/vulkan/wsi/wsi_common_wayland.c
+          fi
+
+          # 3. FIX MISSING EPOLL HEADERS (Always needed for Termux environment)
+          if [ -f "src/util/os_file.c" ]; then
+          sed -i '1i #include <sys/epoll.h>' src/util/os_file.c
+          fi 
+          if [ -f "src/util/os_file_notify.c" ]; then
+          sed -i '1i #include <sys/epoll.h>' src/util/os_file_notify.c
+          fi
           }
-          EOF
+          EOF 
           echo "Successfully injected source-patching hook into build.sh"
-         
+   
       - name: Build Mesa package
         run: |
           cd termux-packages
