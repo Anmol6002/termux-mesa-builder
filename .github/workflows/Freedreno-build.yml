@@ -1,4 +1,4 @@
-name: Build Termux Mesa
+name: Build Termux Mesa Freedreno 
 
 on:
   workflow_dispatch:
