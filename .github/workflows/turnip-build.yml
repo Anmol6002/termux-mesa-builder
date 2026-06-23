@@ -31,6 +31,7 @@ jobs:
           rm -f packages/mesa/0020-unofficial-support-adreno-830.patch
           rm -f packages/mesa/0003-fix-for-anon-file.patch
           rm -f packages/mesa/0007-use-mtx_t-operations-in-turnip.patch
+          rm -f packages/mesa/0019-UBWC_5-and-UBWC_6-support.patch
           # Set URLs based on GitHub Action inputs
           REPO="${{ github.event.inputs.repo_url }}"
           BRANCH="${{ github.event.inputs.branch }}"
