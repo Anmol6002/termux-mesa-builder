@@ -29,7 +29,7 @@ jobs:
           rm -f packages/mesa/0016-unofficial_support_adreno_710_720_722.patch
           rm -f packages/mesa/0021-unofficial-support-adreno-810-825-829.patch
           rm -f packages/mesa/0020-unofficial-support-adreno-830.patch
-          
+          rm -f packages/mesa/0003-fix-for-anon-file.patch
           # Set URLs based on GitHub Action inputs
           REPO="${{ github.event.inputs.repo_url }}"
           BRANCH="${{ github.event.inputs.branch }}"
