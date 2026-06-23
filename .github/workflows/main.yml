@@ -114,8 +114,7 @@ jobs:
               sed -i '1i #include <sys/epoll.h>' src/util/os_file_notify.c
               fi
           }
-          EOF 
-          echo "Successfully injected source-patching hook into build.sh"
+          EOF
    
       - name: Build Mesa package
         run: |
