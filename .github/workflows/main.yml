@@ -49,7 +49,10 @@ jobs:
           
           # Inject foldername override so Termux finds the extracted source
           sed -i "/^TERMUX_PKG_SHA256=/a TERMUX_PKG_FOLDERNAME=$FOLDER_NAME" packages/mesa/build.sh
-     
+
+          # CHANGE 2: Fix 'bsdtar' installation conflict by disabling libarchive programs
+          sed -i '/TERMUX_PKG_SHA256=/a TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" -Dlibarchive:programs=false -Dlibarchive:install_static=false"' packages/mesa/build.sh
+      
       # NEW LOGIC: Test every patch on the lfdevs codebase, dynamically dropping broken lines
       - name: Intelligently Audit & Filter Patches
         run: |
@@ -91,7 +94,9 @@ jobs:
 
           termux_step_post_get_source() {
               echo "Applying manual fixes for logic in failed Patch 0007..."
-
+              # FIX A: Redirect /tmp to Termux usr/tmp (Solves OUT_OF_HOST_MEMORY)
+              echo "Redirecting hardcoded /tmp paths..."
+              grep -rl "/tmp" src/ | xargs -r sed -i "s|/tmp|/data/data/com.termux/files/usr/tmp|g"
               # 1. FIX MUTEX TYPE MISMATCH in tu_shader.cc (The error that stopped your build)
               if [ -f "src/freedreno/vulkan/tu_shader.cc" ]; then
               echo "Repairing C11 mutex calls in tu_shader.cc..."
@@ -105,7 +110,6 @@ jobs:
               sed -i 's/pthread_mutex_lock(&chain->present_ids.lock)/mtx_lock(\&chain->present_ids.lock)/g' src/vulkan/wsi/wsi_common_wayland.c
               sed -i 's/pthread_mutex_unlock(&chain->present_ids.lock)/mtx_unlock(\&chain->present_ids.lock)/g' src/vulkan/wsi/wsi_common_wayland.c
               fi
-
               # 3. FIX MISSING EPOLL HEADERS (Always needed for Termux environment)
               if [ -f "src/util/os_file.c" ]; then
               sed -i '1i #include <sys/epoll.h>' src/util/os_file.c
