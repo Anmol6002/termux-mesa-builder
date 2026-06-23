@@ -54,7 +54,45 @@ jobs:
           sed -i "/^TERMUX_PKG_SHA256=/a TERMUX_PKG_FOLDERNAME=$FOLDER_NAME" packages/mesa/build.sh
           # CHANGE 2: Fix 'bsdtar' installation conflict by disabling libarchive programs
           sed -i '/TERMUX_PKG_SHA256=/a TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" -Dlibarchive:programs=false -Dlibarchive:install_static=false"' packages/mesa/build.sh
-      
+
+      - name: Inject Manual Logic Repairs
+        run: |
+          cd termux-packages/packages/mesa
+          
+          # Use a heredoc. Note: EOF must be flush with the left margin!
+          cat >> build.sh <<'EOF'
+          termux_step_post_get_source() {
+          echo "Applying manual repairs for failed patches 0003, 0007, 0019..."
+
+          # --- REPAIR 0007: Mutex Type Fix (Fixes the build error) ---
+          # We use a global replace to catch all lines in the tu_shader.cc file
+          if [ -f "src/freedreno/vulkan/tu_shader.cc" ]; then
+          echo "Fixing mtx_t mismatch in tu_shader.cc..."
+          sed -i 's/pthread_mutex_lock(&dev->pipeline_mutex)/mtx_lock(\&dev->pipeline_mutex)/g' src/freedreno/vulkan/tu_shader.cc
+          sed -i 's/pthread_mutex_unlock(&dev->pipeline_mutex)/mtx_unlock(\&dev->pipeline_mutex)/g' src/freedreno/vulkan/tu_shader.cc
+          fi
+          if [ -f "src/vulkan/wsi/wsi_common_wayland.c" ]; then
+          echo "Fixing mtx_t mismatch in wsi_common_wayland.c..."
+          sed -i 's/pthread_mutex_lock(&chain->present_ids.lock)/mtx_lock(\&chain->present_ids.lock)/g' src/vulkan/wsi/wsi_common_wayland.c
+          sed -i 's/pthread_mutex_unlock(&chain->present_ids.lock)/mtx_unlock(\&chain->present_ids.lock)/g' src/vulkan/wsi/wsi_common_wayland.c
+          fi
+
+          # --- REPAIR 0003: Anon-file Redirection ---
+          # This exactly matches the logic in the patch you provided
+          if [ -f "src/util/anon_file.c" ]; then
+          echo "Repairing anon_file.c paths using @TERMUX_PREFIX@ placeholder..."
+          sed -i 's|"/tmp/xdg-runtime-mesa-%ld"|"@TERMUX_PREFIX@/tmp/xdg-runtime-mesa-%ld"|g' src/util/anon_file.c
+          fi
+
+          # --- REPAIR 0019: UBWC Support ---
+          # Manually adds 'case 5' and 'case 6' to the KGSL loader
+          if [ -f "src/freedreno/vulkan/tu_knl_kgsl.cc" ]; then
+          echo "Applying UBWC 5/6 support..."
+          sed -i '/case KGSL_UBWC_4_0:/a \   case 5:\n   case 6:' src/freedreno/vulkan/tu_knl_kgsl.cc
+          fi
+          }
+          EOF
+          
       - name: Build Mesa package
         run: |
           cd termux-packages
