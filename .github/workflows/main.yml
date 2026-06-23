@@ -94,6 +94,24 @@ jobs:
           cat >> build.sh <<'EOF'
 
           termux_step_post_get_source() {
+              # --- SECTION 1: Fix Patch 0017 (EGL Zink Support for Termux:X11) ---
+              # This is why your glmark2 was falling back to CPU (llvmpipe).
+              if [ -f "src/egl/drivers/dri2/platform_x11_dri3.c" ]; then
+              echo "Implementing Patch 0017: Forcing DRI3 EGL connect for Zink..."
+              # Change the return false to return true in the DRI3 connection failure block
+              sed -i 's/return false; \/* Patch 0017 logic \*\//return true;/' src/egl/drivers/dri2/platform_x11_dri3.c || \
+              sed -i '/_eglLog(_EGL_WARNING, "DRI3: Failed to initialize");/,/return false/ s/return false/return true/' src/egl/drivers/dri2/platform_x11_dri3.c
+              fi
+              if [ -f "src/egl/main/eglapi.c" ]; then
+              echo "Implementing Patch 0017: Enabling Zink by default for Termux environment..."
+              sed -i 's/disp->Options.Zink = env && !strcmp(env, "zink")/disp->Options.Zink = !env || !strcmp(env, "zink")/' src/egl/main/eglapi.c
+              fi
+              # --- SECTION 2: Fix Patch 0018 (Zink Layout Fix for Turnip) ---
+              # This prevents crashes during image transitions on Adreno GPUs.
+              if [ -f "src/gallium/drivers/zink/zink_screen.c" ]; then
+              echo "Implementing Patch 0018: Fixing image layouts for Turnip..."
+              sed -i 's/if (unlikely(managed_transition))/if (true) \/* Patch 0018 override *\//' src/gallium/drivers/zink/zink_screen.c
+              fi
               echo "Applying manual fixes for logic in failed Patch 0007..."
               # FIX A: Redirect /tmp to Termux usr/tmp (Solves OUT_OF_HOST_MEMORY)
               echo "Redirecting hardcoded /tmp paths..."
