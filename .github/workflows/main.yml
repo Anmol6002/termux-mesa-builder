@@ -28,6 +28,7 @@ jobs:
           echo "Removing redundant Adreno patches..."
           rm -f packages/mesa/0016-unofficial_support_adreno_710_720_722.patch
           rm -f packages/mesa/0021-unofficial-support-adreno-810-825-829.patch
+          rm -f packages/mesa/0005-virgl-socket-path.patch
           
           # Set URLs based on GitHub Action inputs
           REPO="${{ github.event.inputs.repo_url }}"
