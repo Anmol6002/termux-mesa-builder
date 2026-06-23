@@ -53,7 +53,9 @@ jobs:
           # Inject foldername override so Termux finds the extracted source
           sed -i "/^TERMUX_PKG_SHA256=/a TERMUX_PKG_FOLDERNAME=$FOLDER_NAME" packages/mesa/build.sh
           # CHANGE 2: Fix 'bsdtar' installation conflict by disabling libarchive programs
-          sed -i '/TERMUX_PKG_SHA256=/a TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" -Dlibarchive:programs=false -Dlibarchive:install_static=false"' packages/mesa/build.sh
+          # FORCE RELEASE MODE & fix bsdtar conflict
+          sed -i "s|buildtype=minsize|buildtype=release|g" packages/mesa/build.sh
+          sed -i '/TERMUX_PKG_SHA256=/a TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" -Dlibarchive:programs=false -Dlibarchive:install_static=false -Db_ndebug=true"' packages/mesa/build.sh
 
       - name: Inject Manual Logic Repairs
         run: |
@@ -82,12 +84,6 @@ jobs:
           if [ -f "src/util/anon_file.c" ]; then
           echo "Repairing anon_file.c paths using @TERMUX_PREFIX@ placeholder..."
           sed -i 's|"/tmp/xdg-runtime-mesa-%ld"|"@TERMUX_PREFIX@/tmp/xdg-runtime-mesa-%ld"|g' src/util/anon_file.c
-          fi
-
-          # --- REPAIR 0011: TLS Symbol Fix (Linker fix) ---
-          if [ -f "src/gallium/targets/dri/dri.sym.in" ]; then
-          sed -i 's/_mesa_glapi_tls_Context/__emutls_v._mesa_glapi_tls_Context/g' src/gallium/targets/dri/dri.sym.in
-          sed -i 's/_mesa_glapi_tls_Dispatch/__emutls_v._mesa_glapi_tls_Dispatch/g' src/gallium/targets/dri/dri.sym.in
           fi
 
           # --- REPAIR: FORCE VULKAN 1.3 VERSION ---
