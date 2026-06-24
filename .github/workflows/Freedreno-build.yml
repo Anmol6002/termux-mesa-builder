@@ -34,6 +34,7 @@ jobs:
           rm -f packages/mesa/0019-UBWC_5-and-UBWC_6-support.patch
           rm -f packages/mesa/0013-detect-sve-sve2-support.patch
           rm -f packages/mesa/0017-preserve-egl-support-in-zink.patch
+          rm -f packages/mesa/0018-disable-general-layout-in-zink-for-turnip.patch
           # Set URLs based on GitHub Action inputs
           REPO="${{ github.event.inputs.repo_url }}"
           BRANCH="${{ github.event.inputs.branch }}"
