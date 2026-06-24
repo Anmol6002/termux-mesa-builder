@@ -93,14 +93,15 @@ jobs:
           if [ -f "src/egl/main/eglapi.c" ]; then
           sed -i 's/disp->Options.Zink = env && !strcmp(env, "zink")/disp->Options.Zink = !env || !strcmp(env, "zink")/' src/egl/main/eglapi.c
           fi
-          # --- REPAIR 0018: Disable General Layout in Zink for Turnip ---
+          # --- REPAIR 0018: Zink Layout Fix (Targeted Scoped Fix) ---
+          # We restrict the sed to only run inside the 'init_driver_workarounds' function
           if [ -f "src/gallium/drivers/zink/zink_screen.c" ]; then
-          echo "Applying precise Patch 0018 logic to zink_screen.c..."
-          # 1. Remove it from the block where it was set to 'true'
-          sed -i '/case VK_DRIVER_ID_MESA_TURNIP:/d' src/gallium/drivers/zink/zink_screen.c
-          # 2. Add a new block specifically for Turnip setting it to 'false' before the default case
-          sed -i '/default:/i \   case VK_DRIVER_ID_MESA_TURNIP:\n      screen->driver_workarounds.general_layout = false;\n      break;' src/gallium/drivers/zink/zink_screen.c
-          fi
+          echo "Applying Scoped Patch 0018 logic to zink_screen.c..."
+          # First, remove the Turnip case from the 'true' block in this function only
+          sed -i '/init_driver_workarounds/,/^}/ s/case VK_DRIVER_ID_MESA_TURNIP://' src/gallium/drivers/zink/zink_screen.c
+          # Second, insert the 'false' block for Turnip specifically before the Qualcomm case
+          sed -i '/init_driver_workarounds/,/^}/ s/case VK_DRIVER_ID_QUALCOMM_PROPRIETARY:/case VK_DRIVER_ID_MESA_TURNIP:\n      screen->driver_workarounds.general_layout = false;\n      break;\n   case VK_DRIVER_ID_QUALCOMM_PROPRIETARY:/' src/gallium/drivers/zink/zink_screen.c
+          fi 
           # --- REPAIR 0013: SVE/SVE2 Detection logic for llvmpipe ---
           if [ -f "src/gallium/auxiliary/gallivm/lp_bld_misc.cpp" ]; then
           echo "Applying SVE detection repairs (0013)..."
