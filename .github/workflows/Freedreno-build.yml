@@ -115,14 +115,6 @@ jobs:
           echo "Fix epoll os_file.c error..."
           sed -i '1i #include <sys/epoll.h>' src/util/os_file.c
           fi 
-          # --- REPAIR extra: FORCE VULKAN 1.3 VERSION (Based on your tu_device.cc) ---
-          if [ -f "src/freedreno/vulkan/tu_device.cc" ]; then
-          echo "Applying Master Repairs for Adreno 613 (Vulkan 1.3 Force) Bypassing Multiview requirement to unlock Vulkan 1.3..."
-          # Force the version check to always follow the 'true' path (1.3+)
-          sed -i 's/tu_has_multiview(pdevice) ?/true ?/g' src/freedreno/vulkan/tu_device.cc
-          # Force the Vulkan 1.1 internal capability check to true
-          sed -i 's/return tu_has_multiview(device);/return true;/' src/freedreno/vulkan/tu_device.cc
-          fi
           }
           EOF
           
