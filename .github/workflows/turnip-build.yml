@@ -53,7 +53,7 @@ jobs:
           # Inject foldername override so Termux finds the extracted source
           sed -i "/^TERMUX_PKG_SHA256=/a TERMUX_PKG_FOLDERNAME=$FOLDER_NAME" packages/mesa/build.sh
           # CHANGE 2: Fix 'bsdtar' installation conflict by disabling libarchive programs
-          sed -i '/TERMUX_PKG_SHA256=/a TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" -Dlibarchive:programs=false -Dlibarchive:install_static=false"' packages/mesa/build.sh
+          sed -i '/TERMUX_PKG_SHA256=/a TERMUX_PKG_EXTRA_CONFIGURE_ARGS+="-Dlibarchive:programs=false -Dlibarchive:install_static=false"' packages/mesa/build.sh
 
       - name: Inject Manual Logic Repairs
         run: |
