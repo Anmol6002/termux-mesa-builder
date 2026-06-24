@@ -86,6 +86,11 @@ jobs:
           echo "Repairing anon_file.c paths using TERMUX_PREFIX placeholder..."
           sed -i 's|"/tmp/xdg-runtime-mesa-%ld"|"TERMUX_PREFIX/tmp/xdg-runtime-mesa-%ld"|g' src/util/anon_file.c
           fi
+          # --- FIX MISSING EPOLL HEADERS (Always needed for Termux environment)
+          if [ -f "src/util/os_file.c" ]; then
+          echo "Fix epoll os_file.c error..."
+          sed -i '1i #include <sys/epoll.h>' src/util/os_file.c
+          fi 
           }
           EOF
           
