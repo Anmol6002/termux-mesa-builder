@@ -55,7 +55,7 @@ jobs:
           
           # Inject foldername override so Termux finds the extracted source
           sed -i "/^TERMUX_PKG_SHA256=/a TERMUX_PKG_FOLDERNAME=$FOLDER_NAME" packages/mesa/build.sh
-           # CHANGE 2: Fix 'bsdtar' installation conflict by disabling libarchive programs
+          # CHANGE 2: Fix 'bsdtar' installation conflict by disabling libarchive programs
           sed -i '/TERMUX_PKG_SHA256=/a TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" -Dlibarchive:programs=false -Dlibarchive:install_static=false"' packages/mesa/build.sh
      
       - name: Inject Manual Logic Repairs
@@ -83,8 +83,8 @@ jobs:
           # --- REPAIR 0003: Anon-file Redirection ---
           # This exactly matches the logic in the patch you provided
           if [ -f "src/util/anon_file.c" ]; then
-          echo "Repairing anon_file.c paths using TERMUX_PREFIX placeholder..."
-          sed -i 's|"/tmp/xdg-runtime-mesa-%ld"|"TERMUX_PREFIX/tmp/xdg-runtime-mesa-%ld"|g' src/util/anon_file.c
+          echo "Repairing anon_file.c paths using $PREFIX placeholder..."
+          sed -i 's|"/tmp/xdg-runtime-mesa-%ld"|"$PREFIX/tmp/xdg-runtime-mesa-%ld"|g' src/util/anon_file.c
           fi
           # --- FIX MISSING EPOLL HEADERS (Always needed for Termux environment)
           if [ -f "src/util/os_file.c" ]; then
