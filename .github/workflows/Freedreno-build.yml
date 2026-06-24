@@ -101,12 +101,6 @@ jobs:
           # 2. Add a new block specifically for Turnip setting it to 'false' before the default case
           sed -i '/default:/i \   case VK_DRIVER_ID_MESA_TURNIP:\n      screen->driver_workarounds.general_layout = false;\n      break;' src/gallium/drivers/zink/zink_screen.c
           fi
-          # --- REPAIR 0011: TLS Symbol Fix (Ensures driver loads on Android) ---
-          if [ -f "src/gallium/targets/dri/dri.sym.in" ]; then
-          echo "Applying TLS symbol repair (0011)..."
-          sed -i 's/_mesa_glapi_tls_Context/__emutls_v._mesa_glapi_tls_Context/g' src/gallium/targets/dri/dri.sym.in
-          sed -i 's/_mesa_glapi_tls_Dispatch/__emutls_v._mesa_glapi_tls_Dispatch/g' src/gallium/targets/dri/dri.sym.in
-          fi
           # --- REPAIR 0013: SVE/SVE2 Detection logic for llvmpipe ---
           if [ -f "src/gallium/auxiliary/gallivm/lp_bld_misc.cpp" ]; then
           echo "Applying SVE detection repairs (0013)..."
