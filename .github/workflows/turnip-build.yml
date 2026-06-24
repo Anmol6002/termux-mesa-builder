@@ -89,6 +89,7 @@ jobs:
           echo "Fix epoll os_file.c error..."
           sed -i '1i #include <sys/epoll.h>' src/util/os_file.c
           fi 
+          }
           EOF
           
       - name: Build Mesa package
