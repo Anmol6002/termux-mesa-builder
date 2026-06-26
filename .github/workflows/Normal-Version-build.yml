@@ -1,4 +1,4 @@
-name: Build Termux Mesa Normal version With Adreno 613 added 
+name: Normal version With Adreno 613 added 
 
 on:
   workflow_dispatch:
