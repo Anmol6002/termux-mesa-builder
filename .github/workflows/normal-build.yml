@@ -1,4 +1,4 @@
-name: Build Termux Mesa Turnip without APN1.3
+name: Build Termux Mesa Normal version With Adreno 613 added 
 
 on:
   workflow_dispatch:
