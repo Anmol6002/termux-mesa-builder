@@ -66,7 +66,6 @@ jobs:
           cat >> build.sh <<'EOF'
           termux_step_post_get_source() {
           echo "Applying manual repairs for failed patches 0003, 0007..."
-
           # --- REPAIR 0007: Mutex Type Fix (Fixes the build error) ---
           # We use a global replace to catch all lines in the tu_shader.cc file
           if [ -f "src/freedreno/vulkan/tu_shader.cc" ]; then
@@ -79,42 +78,26 @@ jobs:
           sed -i 's/pthread_mutex_lock(&chain->present_ids.lock)/mtx_lock(\&chain->present_ids.lock)/g' src/vulkan/wsi/wsi_common_wayland.c
           sed -i 's/pthread_mutex_unlock(&chain->present_ids.lock)/mtx_unlock(\&chain->present_ids.lock)/g' src/vulkan/wsi/wsi_common_wayland.c
           fi
-
           # --- REPAIR 0003: Anon-file Redirection ---
           # This exactly matches the logic in the patch you provided
           if [ -f "src/util/anon_file.c" ]; then
           echo "Repairing anon_file.c paths using $PREFIX placeholder..."
           sed -i 's|"/tmp/xdg-runtime-mesa-%ld"|"$PREFIX/tmp/xdg-runtime-mesa-%ld"|g' src/util/anon_file.c
           fi
-          # 1. FIX PATCH 0017: Preserve Zink EGL Support (Removes the DRI3 warning/fallback)
-          if [ -f "src/egl/drivers/dri2/platform_x11_dri3.c" ]; then
-          sed -i '/DRI3: Failed to initialize/,/return false/ s/return false/return true/' src/egl/drivers/dri2/platform_x11_dri3.c
-          fi
-          if [ -f "src/egl/main/eglapi.c" ]; then
-          sed -i 's/disp->Options.Zink = env && !strcmp(env, "zink")/disp->Options.Zink = !env || !strcmp(env, "zink")/' src/egl/main/eglapi.c
-          fi
-          # --- REPAIR 0018: Zink Layout Fix (Targeted Scoped Fix) ---
-          # We restrict the sed to only run inside the 'init_driver_workarounds' function
-          if [ -f "src/gallium/drivers/zink/zink_screen.c" ]; then
-          echo "Applying Scoped Patch 0018 logic to zink_screen.c..."
-          # First, remove the Turnip case from the 'true' block in this function only
-          sed -i '/init_driver_workarounds/,/^}/ s/case VK_DRIVER_ID_MESA_TURNIP://' src/gallium/drivers/zink/zink_screen.c
-          # Second, insert the 'false' block for Turnip specifically before the Qualcomm case
-          sed -i '/init_driver_workarounds/,/^}/ s/case VK_DRIVER_ID_QUALCOMM_PROPRIETARY:/case VK_DRIVER_ID_MESA_TURNIP:\n      screen->driver_workarounds.general_layout = false;\n      break;\n   case VK_DRIVER_ID_QUALCOMM_PROPRIETARY:/' src/gallium/drivers/zink/zink_screen.c
-          fi 
-          # --- REPAIR 0013: SVE/SVE2 Detection logic for llvmpipe ---
-          if [ -f "src/gallium/auxiliary/gallivm/lp_bld_misc.cpp" ]; then
-          echo "Applying SVE detection repairs (0013)..."
-          # Inject headers after existing include
-          sed -i '/#include "lp_bld_debug.h"/a #if __has_include(<sys/auxv.h>)\n#include <sys/auxv.h>\n#define HAVE_SYS_AUXV 1\n#ifndef AT_HWCAP\n#define AT_HWCAP 16\n#endif\n#ifndef AT_HWCAP2\n#define AT_HWCAP2 26\n#endif\n#ifndef HWCAP_SVE\n#define HWCAP_SVE (1 << 22)\n#endif\n#ifndef HWCAP2_SVE2\n#define HWCAP2_SVE2 (1 << 1)\n#endif\n#endif' src/gallium/auxiliary/gallivm/lp_bld_misc.cpp
-          # --- REPAIR 0013: SVE Detection (Logic) ---
-          sed -i '/MAttrs.push_back("-lasx");/a #if DETECT_ARCH_AARCH64 && defined(HAVE_SYS_AUXV)\n   bool has_sve = getauxval(AT_HWCAP) & HWCAP_SVE;\n   bool has_sve2 = getauxval(AT_HWCAP2) & HWCAP2_SVE2;\n   MAttrs.push_back(has_sve ? "+sve" : "-sve");\n   MAttrs.push_back(has_sve2 ? "+sve2" : "-sve2");\n#endif\n   char *env_extra_mattrs = getenv("GALLIVM_EXTRA_MATTRS");\n   if (env_extra_mattrs != NULL) {\n      char *dup = strdup(env_extra_mattrs);\n      if (dup != NULL) {\n         char *state;\n         char *token = strtok_r(dup, ",", &state);\n         while (token) {\n            MAttrs.push_back(token);\n            token = strtok_r(NULL, ",", &state);\n         }\n         free(dup);\n      }\n   }' src/gallium/auxiliary/gallivm/lp_bld_misc.cpp
-          fi
           # --- FIX MISSING EPOLL HEADERS (Always needed for Termux environment)
           if [ -f "src/util/os_file.c" ]; then
           echo "Fix epoll os_file.c error..."
           sed -i '1i #include <sys/epoll.h>' src/util/os_file.c
           fi 
+         
+          # --- REPAIR extra: FORCE VULKAN 1.3 VERSION (Based on your tu_device.cc) ---
+          if [ -f "src/freedreno/vulkan/tu_device.cc" ]; then
+          echo "Applying Master Repairs for Adreno 613 (Vulkan 1.3 Force) Bypassing Multiview requirement to unlock Vulkan 1.3..."
+          # Force the version check to always follow the 'true' path (1.3+)
+          sed -i 's/tu_has_multiview(pdevice) ?/true ?/g' src/freedreno/vulkan/tu_device.cc
+          # Force the Vulkan 1.1 internal capability check to true
+          sed -i 's/return tu_has_multiview(device);/return true;/' src/freedreno/vulkan/tu_device.cc
+          fi
           }
           EOF
           
@@ -126,6 +109,6 @@ jobs:
       - name: Upload DEB packages
         uses: actions/upload-artifact@v4
         with:
-          name: termux-mesa-debs
+          name: termux-mesa-debs-force-v1.3
           path: termux-packages/output/*.deb
           
