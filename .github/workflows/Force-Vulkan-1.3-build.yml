@@ -1,4 +1,4 @@
-name: Build Termux Mesa Freedreno
+name: Build Termux Mesa Force Vulkan 1.3 version so it Works on Adreno 613,a6xx do self test on others 
 
 on:
   workflow_dispatch:
