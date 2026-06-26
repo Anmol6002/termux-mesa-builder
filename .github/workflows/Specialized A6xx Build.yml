@@ -1,4 +1,4 @@
-name: Normal version With Adreno 613 added 
+name: Specialized version With Adreno 613 added,For A6xx devices
 
 on:
   workflow_dispatch:
@@ -89,6 +89,25 @@ jobs:
           echo "Fix epoll os_file.c error..."
           sed -i '1i #include <sys/epoll.h>' src/util/os_file.c
           fi 
+          # --- REPAIR 1: FORCE VULKAN 1.4 API VERSION ---
+          if [ -f "src/freedreno/vulkan/tu_device.cc" ]; then
+          echo "Forcing apiVersion to 1.4 and unlocking version gatesSurgically unlocking all Vulkan versions and features for Adreno 613,A6xx..."
+          # Force the version string to 1.4 (TU_API_VERSION)
+          sed -i 's/props->apiVersion = tu_has_multiview(pdevice) ?/props->apiVersion = TU_API_VERSION; \/\//g' src/freedreno/vulkan/tu_device.cc
+          # Force the 1.1 and Multiview internal checks to always return true
+          sed -i 's/return tu_has_multiview(device);/return true;/' src/freedreno/vulkan/tu_device.cc
+          sed -i 's/return device->info->props.has_hw_multiview || TU_DEBUG(NOCONFORM);/return true;/' src/freedreno/vulkan/tu_device.cc
+          # Bypass 'chip >= 7' requirements for conformance version reporting
+          sed -i 's/if (pdevice->info->chip >= 7)/if (true)/g' src/freedreno/vulkan/tu_device.cc
+          fi
+          # --- REPAIR 2: UNLOCK PROTECTED FEATURES (Bypass family checks) ---
+          # This allows 6xx to use features usually limited to 7xx/8xx in the source
+          if [ -f "src/freedreno/vulkan/tu_device.cc" ]; then
+          echo "Removing chip-family feature gates..."
+          sed -i 's/pdevice->info->chip >= 7/pdevice->info->chip >= 6/g' src/freedreno/vulkan/tu_device.cc
+          sed -i 's/pdevice->info->chip >= 8/pdevice->info->chip >= 6/g' src/freedreno/vulkan/tu_device.cc
+          sed -i 's/device->info->chip >= 7/device->info->chip >= 6/g' src/freedreno/vulkan/tu_device.cc
+          fi
           }
           EOF
           
