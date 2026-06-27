@@ -1,4 +1,4 @@
-name: Build Termux Package sascha vulkan demos
+name: Build Package sascha-vulkan-demos
 
 on:
   workflow_dispatch:
@@ -39,4 +39,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sascha-vulkan-demos-${{ matrix.arch }}-debs
-          path: termux-packages/debs/*.deb
+          path: termux-packages/output/*.deb
