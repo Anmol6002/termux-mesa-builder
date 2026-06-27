@@ -1,0 +1,113 @@
+name: Force Vulkan 1.4 Universal Adreno-All
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo_url:
+        description: 'Mesa GitHub Repository (e.g. lfdevs/mesa-for-android-container)'
+        required: true
+        default: 'Anmol6002/mesa-for-android-container'
+      branch:
+        description: 'Branch name (e.g. adreno-main)'
+        required: true
+        default: 'dev/adreno-main'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    
+      - name: Checkout termux-packages
+        run: git clone --depth 1 https://github.com/termux/termux-packages.git
+
+      - name: Setup custom Mesa source
+        run: |
+          cd termux-packages
+          # 1. DELETE THE CONFLICTING PATCHES
+          # These are already in the Anmol6002 source
+          echo "Removing redundant Adreno patches..."
+          rm -f packages/mesa/0016-unofficial_support_adreno_710_720_722.patch
+          rm -f packages/mesa/0021-unofficial-support-adreno-810-825-829.patch
+          rm -f packages/mesa/0020-unofficial-support-adreno-830.patch
+          rm -f packages/mesa/0003-fix-for-anon-file.patch
+          rm -f packages/mesa/0007-use-mtx_t-operations-in-turnip.patch
+          rm -f packages/mesa/0019-UBWC_5-and-UBWC_6-support.patch
+          rm -f packages/mesa/0013-detect-sve-sve2-support.patch
+          rm -f packages/mesa/0017-preserve-egl-support-in-zink.patch
+          rm -f packages/mesa/0018-disable-general-layout-in-zink-for-turnip.patch
+          # Set URLs based on GitHub Action inputs
+          REPO="${{ github.event.inputs.repo_url }}"
+          BRANCH="${{ github.event.inputs.branch }}"
+          TAR_URL="https://github.com/$REPO/archive/refs/heads/$BRANCH.tar.gz"
+          
+          echo "Downloading source to calculate SHA256..."
+          wget -q "$TAR_URL" -O mesa.tar.gz
+          SHA256=$(sha256sum mesa.tar.gz | awk '{print $1}')
+          
+          # GitHub tarballs extract into a folder named RepoName-BranchName
+          REPO_NAME=$(basename $REPO)
+          FOLDER_NAME="${REPO_NAME}-${BRANCH}"
+          
+          echo "Patching Termux build.sh to use custom source..."
+          sed -i "s|^TERMUX_PKG_VERSION=.*|TERMUX_PKG_VERSION=26.2.0|g" packages/mesa/build.sh
+          sed -i "s|^TERMUX_PKG_SRCURL=.*|TERMUX_PKG_SRCURL=$TAR_URL|g" packages/mesa/build.sh
+          sed -i "s|^TERMUX_PKG_SHA256=.*|TERMUX_PKG_SHA256=$SHA256|g" packages/mesa/build.sh
+          
+          # Inject foldername override so Termux finds the extracted source
+          sed -i "/^TERMUX_PKG_SHA256=/a TERMUX_PKG_FOLDERNAME=$FOLDER_NAME" packages/mesa/build.sh
+          # CHANGE 2: Fix 'bsdtar' installation conflict by disabling libarchive programs
+          sed -i '/TERMUX_PKG_SHA256=/a TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" -Dlibarchive:programs=false -Dlibarchive:install_static=false"' packages/mesa/build.sh
+     
+      - name: Inject Manual Logic Repairs
+        run: |
+          cd termux-packages/packages/mesa
+          
+          # Use a heredoc. Note: EOF must be flush with the left margin!
+          cat >> build.sh <<'EOF'
+          termux_step_post_get_source() {
+          echo "Applying manual repairs for failed patches 0003, 0007..."
+          # --- REPAIR 0007: Mutex Type Fix (Fixes the build error) ---
+          # We use a global replace to catch all lines in the tu_shader.cc file
+          if [ -f "src/freedreno/vulkan/tu_shader.cc" ]; then
+          echo "Fixing mtx_t mismatch in tu_shader.cc..."
+          sed -i 's/pthread_mutex_lock(&dev->pipeline_mutex)/mtx_lock(\&dev->pipeline_mutex)/g' src/freedreno/vulkan/tu_shader.cc
+          sed -i 's/pthread_mutex_unlock(&dev->pipeline_mutex)/mtx_unlock(\&dev->pipeline_mutex)/g' src/freedreno/vulkan/tu_shader.cc
+          fi
+          if [ -f "src/vulkan/wsi/wsi_common_wayland.c" ]; then
+          echo "Fixing mtx_t mismatch in wsi_common_wayland.c..."
+          sed -i 's/pthread_mutex_lock(&chain->present_ids.lock)/mtx_lock(\&chain->present_ids.lock)/g' src/vulkan/wsi/wsi_common_wayland.c
+          sed -i 's/pthread_mutex_unlock(&chain->present_ids.lock)/mtx_unlock(\&chain->present_ids.lock)/g' src/vulkan/wsi/wsi_common_wayland.c
+          fi
+          # --- REPAIR 0003: Anon-file Redirection ---
+          # This exactly matches the logic in the patch you provided
+          if [ -f "src/util/anon_file.c" ]; then
+          echo "Repairing anon_file.c paths using $PREFIX placeholder..."
+          sed -i 's|"/tmp/xdg-runtime-mesa-%ld"|"$PREFIX/tmp/xdg-runtime-mesa-%ld"|g' src/util/anon_file.c
+          fi
+          # --- FIX MISSING EPOLL HEADERS (Always needed for Termux environment)
+          if [ -f "src/util/os_file.c" ]; then
+          echo "Fix epoll os_file.c error..."
+          sed -i '1i #include <sys/epoll.h>' src/util/os_file.c
+          fi         
+          # --- REPAIR FORCE VULKAN 1.4 FOR ALL CHIPS (The proper way) ---
+          if [ -f "src/freedreno/vulkan/tu_device.cc" ]; then
+          echo "Unlocking apiVersion 1.4 universally Applying Universal Repairs for all Adreno devices..."
+          # This replaces the logic check with a direct assignment to 1.4 for all families
+          sed -i 's/props->apiVersion = tu_has_multiview(pdevice) ?/props->apiVersion = TU_API_VERSION; \/\//g' src/freedreno/vulkan/tu_device.cc
+          # Ensure 1.1 features are enabled even for low-end 6xx chips
+          sed -i 's/return tu_has_multiview(device);/return true;/' src/freedreno/vulkan/tu_device.cc
+          fi
+          }
+          EOF
+          
+      - name: Build Mesa package
+        run: |
+          cd termux-packages
+          # Start the build. Termux automatically pulls its Docker image and cross-compiles!
+          ./scripts/run-docker.sh ./build-package.sh -a aarch64 -f -I -C mesa
+      - name: Upload DEB packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: termux-mesa-debs-universal-vulkan-1.4
+          path: termux-packages/output/*.deb
+    
