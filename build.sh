@@ -1,3 +1,4 @@
+
 TERMUX_PKG_HOMEPAGE=https://github.com/SaschaWillems/Vulkan
 TERMUX_PKG_DESCRIPTION="C++ Vulkan examples and demos"
 TERMUX_PKG_LICENSE="MIT"
@@ -21,6 +22,8 @@ TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
 "
 
 termux_step_post_get_source() {
+	# Fetch the full git history so we can check out historical commits
+	git fetch --unshallow || true
 	git checkout "${_COMMIT}"
 	git submodule update --init --recursive
 }
