@@ -1,0 +1,695 @@
+diff --git a/base/VulkanAndroid.cpp b/base/VulkanAndroid.cpp
+index aa7d12d8..cd68bdb5 100644
+--- a/base/VulkanAndroid.cpp
++++ b/base/VulkanAndroid.cpp
+@@ -8,7 +8,7 @@
+ 
+ #include "VulkanAndroid.h"
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 	#include <android/log.h>
+ 	#include <dlfcn.h>
+ 	#include <android/native_window_jni.h>
+diff --git a/base/VulkanAndroid.h b/base/VulkanAndroid.h
+index 7d6ae7f1..8153c2f6 100644
+--- a/base/VulkanAndroid.h
++++ b/base/VulkanAndroid.h
+@@ -21,7 +21,7 @@
+ 
+ #include "vulkan/vulkan.h"
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 
+ #include <android/log.h>
+ #include <android_native_app_glue.h>
+diff --git a/base/VulkanDebug.cpp b/base/VulkanDebug.cpp
+index 1d3a78e4..3530ea1c 100644
+--- a/base/VulkanDebug.cpp
++++ b/base/VulkanDebug.cpp
+@@ -72,7 +72,7 @@ namespace vks
+ 				debugMessage << prefix << "[" << pCallbackData->messageIdNumber << "] : " << pCallbackData->pMessage;
+ 			}
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 			if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+ 				LOGE("%s", debugMessage.str().c_str());
+ 			} else {
+diff --git a/base/VulkanDebug.h b/base/VulkanDebug.h
+index 49e877df..89b7d9f3 100644
+--- a/base/VulkanDebug.h
++++ b/base/VulkanDebug.h
+@@ -23,7 +23,7 @@
+ #include <fcntl.h>
+ #include <io.h>
+ #endif
+-#ifdef __ANDROID__
++#ifdef VK_USE_PLATFORM_ANDROID_KHR
+ #include "VulkanAndroid.h"
+ #endif
+ #define GLM_FORCE_RADIANS
+diff --git a/base/VulkanSwapChain.h b/base/VulkanSwapChain.h
+index 911e3ddf..d8938bc0 100644
+--- a/base/VulkanSwapChain.h
++++ b/base/VulkanSwapChain.h
+@@ -19,7 +19,7 @@
+ #include <vulkan/vulkan.h>
+ #include "VulkanTools.h"
+ 
+-#ifdef __ANDROID__
++#ifdef VK_USE_PLATFORM_ANDROID_KHR
+ #include "VulkanAndroid.h"
+ #endif
+ 
+diff --git a/base/VulkanTexture.cpp b/base/VulkanTexture.cpp
+index dcdfc1bf..4562a9e7 100644
+--- a/base/VulkanTexture.cpp
++++ b/base/VulkanTexture.cpp
+@@ -31,7 +31,7 @@ namespace vks
+ 	ktxResult Texture::loadKTXFile(std::string filename, ktxTexture **target)
+ 	{
+ 		ktxResult result = KTX_SUCCESS;
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, filename.c_str(), AASSET_MODE_STREAMING);
+ 		if (!asset) {
+ 			vks::tools::exitFatal("Could not load texture from " + filename + "\n\nMake sure the assets submodule has been checked out and is up-to-date.", -1);
+diff --git a/base/VulkanTexture.h b/base/VulkanTexture.h
+index 222c7690..6cf0c6c6 100644
+--- a/base/VulkanTexture.h
++++ b/base/VulkanTexture.h
+@@ -22,7 +22,7 @@
+ #include "VulkanDevice.h"
+ #include "VulkanTools.h"
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ #	include <android/asset_manager.h>
+ #endif
+ 
+diff --git a/base/VulkanTools.cpp b/base/VulkanTools.cpp
+index 386b8fdb..43e68f3f 100644
+--- a/base/VulkanTools.cpp
++++ b/base/VulkanTools.cpp
+@@ -350,12 +350,12 @@ namespace vks
+ 			if (!errorModeSilent) {
+ 				MessageBox(NULL, message.c_str(), NULL, MB_OK | MB_ICONERROR);
+ 			}
+-#elif defined(__ANDROID__)
++#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+             LOGE("Fatal error: %s", message.c_str());
+ 			vks::android::showAlert(message.c_str());
+ #endif
+ 			std::cerr << message << "\n";
+-#if !defined(__ANDROID__)
++#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 			exit(exitCode);
+ #endif
+ 		}
+@@ -365,7 +365,7 @@ namespace vks
+ 			exitFatal(message, (int32_t)resultCode);
+ 		}
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		// Android shaders are stored as assets in the apk
+ 		// So they need to be loaded via the asset manager
+ 		VkShaderModule loadShader(AAssetManager* assetManager, const char *fileName, VkDevice device)
+diff --git a/base/VulkanTools.h b/base/VulkanTools.h
+index a010129a..8922d3da 100644
+--- a/base/VulkanTools.h
++++ b/base/VulkanTools.h
+@@ -28,7 +28,7 @@
+ #include <windows.h>
+ #include <fcntl.h>
+ #include <io.h>
+-#elif defined(__ANDROID__)
++#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+ #include "VulkanAndroid.h"
+ #include <android/asset_manager.h>
+ #endif
+@@ -39,7 +39,7 @@
+ #define DEFAULT_FENCE_TIMEOUT 100000000000
+ 
+ // Macro to check and display Vulkan return results
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ #define VK_CHECK_RESULT(f)																				\
+ {																										\
+ 	VkResult res = (f);																					\
+@@ -128,7 +128,7 @@ namespace vks
+ 		void exitFatal(const std::string& message, VkResult resultCode);
+ 
+ 		// Load a SPIR-V shader (binary)
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		VkShaderModule loadShader(AAssetManager* assetManager, const char *fileName, VkDevice device);
+ #else
+ 		VkShaderModule loadShader(const char *fileName, VkDevice device);
+diff --git a/base/VulkanUIOverlay.cpp b/base/VulkanUIOverlay.cpp
+index 36b96b3e..39e3cfb0 100644
+--- a/base/VulkanUIOverlay.cpp
++++ b/base/VulkanUIOverlay.cpp
+@@ -13,7 +13,7 @@ namespace vks
+ {
+ 	UIOverlay::UIOverlay()
+ 	{
+-#if defined(__ANDROID__)		
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)		
+ 		if (vks::android::screenDensity >= ACONFIGURATION_DENSITY_XXHIGH) {
+ 			scale = 3.5f;
+ 		}
+@@ -65,7 +65,7 @@ namespace vks
+ 		// Create font texture
+ 		unsigned char* fontData;
+ 		int texWidth, texHeight;
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		float scale = (float)vks::android::screenDensity / (float)ACONFIGURATION_DENSITY_MEDIUM;
+ 		AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, "Roboto-Medium.ttf", AASSET_MODE_STREAMING);
+ 		if (asset) {
+diff --git a/base/VulkanUIOverlay.h b/base/VulkanUIOverlay.h
+index 2145b4da..118d0775 100644
+--- a/base/VulkanUIOverlay.h
++++ b/base/VulkanUIOverlay.h
+@@ -24,7 +24,7 @@
+ 
+ #include "../external/imgui/imgui.h"
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ #include "VulkanAndroid.h"
+ #endif
+ 
+diff --git a/base/VulkanglTFModel.cpp b/base/VulkanglTFModel.cpp
+index 3dc3965d..b76d8dbb 100644
+--- a/base/VulkanglTFModel.cpp
++++ b/base/VulkanglTFModel.cpp
+@@ -290,7 +290,7 @@ void vkglTF::Texture::fromglTfImage(tinygltf::Image &gltfimage, std::string path
+ 		ktxTexture* ktxTexture;
+ 
+ 		ktxResult result = KTX_SUCCESS;
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, filename.c_str(), AASSET_MODE_STREAMING);
+ 		if (!asset) {
+ 			vks::tools::exitFatal("Could not load texture from " + filename + "\n\nMake sure the assets submodule has been checked out and is up-to-date.", -1);
+@@ -1186,7 +1186,7 @@ void vkglTF::Model::loadFromFile(std::string filename, vks::VulkanDevice *device
+ 	} else {
+ 		gltfContext.SetImageLoader(loadImageDataFunc, nullptr);
+ 	}
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 	// On Android all assets are packed with the apk in a compressed form, so we need to open them using the asset manager
+ 	// We let tinygltf handle this, by passing the asset manager of our app
+ 	tinygltf::asset_manager = androidApp->activity->assetManager;
+@@ -1198,7 +1198,7 @@ void vkglTF::Model::loadFromFile(std::string filename, vks::VulkanDevice *device
+ 
+ 	this->device = device;
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 	// On Android all assets are packed with the apk in a compressed form, so we need to open them using the asset manager
+ 	// We let tinygltf handle this, by passing the asset manager of our app
+ 	tinygltf::asset_manager = androidApp->activity->assetManager;
+diff --git a/base/VulkanglTFModel.h b/base/VulkanglTFModel.h
+index a642ebe3..e477a4c6 100644
+--- a/base/VulkanglTFModel.h
++++ b/base/VulkanglTFModel.h
+@@ -38,7 +38,7 @@
+ #endif
+ #include "tiny_gltf.h"
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ #include <android/asset_manager.h>
+ #endif
+ 
+diff --git a/examples/computecullandlod/computecullandlod.cpp b/examples/computecullandlod/computecullandlod.cpp
+index 147536f4..4c666d2d 100644
+--- a/examples/computecullandlod/computecullandlod.cpp
++++ b/examples/computecullandlod/computecullandlod.cpp
+@@ -13,7 +13,7 @@
+ 
+ 
+ // Total number of objects (^3) in the scene
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ constexpr auto OBJECT_COUNT = 32;
+ #else
+ constexpr auto OBJECT_COUNT = 64;
+diff --git a/examples/computenbody/computenbody.cpp b/examples/computenbody/computenbody.cpp
+index a4c68f67..56d75440 100644
+--- a/examples/computenbody/computenbody.cpp
++++ b/examples/computenbody/computenbody.cpp
+@@ -13,7 +13,7 @@
+ 
+ #include "vulkanexamplebase.h"
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ // Lower particle count on Android for performance reasons
+ constexpr auto PARTICLES_PER_ATTRACTOR = 3 * 1024;
+ #else
+diff --git a/examples/computeparticles/computeparticles.cpp b/examples/computeparticles/computeparticles.cpp
+index 73820a71..9506da58 100644
+--- a/examples/computeparticles/computeparticles.cpp
++++ b/examples/computeparticles/computeparticles.cpp
+@@ -13,7 +13,7 @@
+ 
+ #include "vulkanexamplebase.h"
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ // Lower particle count on Android for performance reasons
+ #define PARTICLE_COUNT 128 * 1024
+ #else
+diff --git a/examples/computeraytracing/computeraytracing.cpp b/examples/computeraytracing/computeraytracing.cpp
+index 1139fda9..0a2eba4d 100644
+--- a/examples/computeraytracing/computeraytracing.cpp
++++ b/examples/computeraytracing/computeraytracing.cpp
+@@ -114,7 +114,7 @@ public:
+ 	// Prepare a storage image that is used to store the compute shader ray tracing output
+ 	void prepareStorageImage()
+ 	{		
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		// Use a smaller image on Android for performance reasons
+ 		const uint32_t textureSize = 1024;
+ #else
+diff --git a/examples/deferred/deferred.cpp b/examples/deferred/deferred.cpp
+index e150f3d4..5874f6d3 100644
+--- a/examples/deferred/deferred.cpp
++++ b/examples/deferred/deferred.cpp
+@@ -99,7 +99,7 @@ public:
+ 		title = "Deferred shading";
+ 		camera.type = Camera::CameraType::firstperson;
+ 		camera.movementSpeed = 5.0f;
+-#ifndef __ANDROID__
++#ifndef VK_USE_PLATFORM_ANDROID_KHR
+ 		camera.rotationSpeed = 0.25f;
+ #endif
+ 		camera.position = { 2.15f, 0.3f, -8.75f };
+diff --git a/examples/deferredmultisampling/deferredmultisampling.cpp b/examples/deferredmultisampling/deferredmultisampling.cpp
+index 7e83a1c1..4bc3aae2 100644
+--- a/examples/deferredmultisampling/deferredmultisampling.cpp
++++ b/examples/deferredmultisampling/deferredmultisampling.cpp
+@@ -85,7 +85,7 @@ public:
+ 		title = "Multi sampled deferred shading";
+ 		camera.type = Camera::CameraType::firstperson;
+ 		camera.movementSpeed = 5.0f;
+-#ifndef __ANDROID__
++#ifndef VK_USE_PLATFORM_ANDROID_KHR
+ 		camera.rotationSpeed = 0.25f;
+ #endif
+ 		camera.position = { 2.15f, 0.3f, -8.75f };
+@@ -135,7 +135,7 @@ public:
+ 	{
+ 		offscreenframeBuffers = new vks::Framebuffer(vulkanDevice);
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		// Use max. screen dimension as deferred framebuffer size
+ 		offscreenframeBuffers->width = std::max(width, height);
+ 		offscreenframeBuffers->height = std::max(width, height);
+diff --git a/examples/deferredshadows/deferredshadows.cpp b/examples/deferredshadows/deferredshadows.cpp
+index bb1b89a5..eca3ffe2 100644
+--- a/examples/deferredshadows/deferredshadows.cpp
++++ b/examples/deferredshadows/deferredshadows.cpp
+@@ -111,7 +111,7 @@ public:
+ 	{
+ 		title = "Deferred shading with shadows";
+ 		camera.type = Camera::CameraType::firstperson;
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		camera.movementSpeed = 2.5f;
+ #else
+ 		camera.movementSpeed = 5.0f;
+@@ -185,7 +185,7 @@ public:
+ 		offscreenframeBuffers.shadow = new vks::Framebuffer(vulkanDevice);
+ 
+ 		// Shadowmap properties
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		// Use smaller shadow maps on mobile due to performance reasons
+ 		offscreenframeBuffers.shadow->width = 1024;
+ 		offscreenframeBuffers.shadow->height = 1024;
+@@ -224,7 +224,7 @@ public:
+ 	{
+ 		offscreenframeBuffers.deferred = new vks::Framebuffer(vulkanDevice);
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		// Use max. screen dimension as deferred framebuffer size
+ 		offscreenframeBuffers.deferred->width = std::max(width, height);
+ 		offscreenframeBuffers.deferred->height = std::max(width, height);
+diff --git a/examples/distancefieldfonts/distancefieldfonts.cpp b/examples/distancefieldfonts/distancefieldfonts.cpp
+index d37a8252..fd5abdc8 100644
+--- a/examples/distancefieldfonts/distancefieldfonts.cpp
++++ b/examples/distancefieldfonts/distancefieldfonts.cpp
+@@ -114,7 +114,7 @@ public:
+ 	{
+ 		std::string fileName = getAssetPath() + "font.fnt";
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		// Font description file is stored inside the apk
+ 		// So we need to load it using the asset manager
+ 		AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, fileName.c_str(), AASSET_MODE_STREAMING);
+diff --git a/examples/gltfloading/gltfloading.cpp b/examples/gltfloading/gltfloading.cpp
+index 287925ee..506958fe 100644
+--- a/examples/gltfloading/gltfloading.cpp
++++ b/examples/gltfloading/gltfloading.cpp
+@@ -448,7 +448,7 @@ public:
+ 
+ 		this->device = device;
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		// On Android all assets are packed with the apk in a compressed form, so we need to open them using the asset manager
+ 		// We let tinygltf handle this, by passing the asset manager of our app
+ 		tinygltf::asset_manager = androidApp->activity->assetManager;
+diff --git a/examples/gltfscenerendering/gltfscenerendering.cpp b/examples/gltfscenerendering/gltfscenerendering.cpp
+index de660ec6..c6dbd440 100644
+--- a/examples/gltfscenerendering/gltfscenerendering.cpp
++++ b/examples/gltfscenerendering/gltfscenerendering.cpp
+@@ -319,7 +319,7 @@ void VulkanExample::loadglTFFile(std::string filename)
+ 
+ 	this->device = device;
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 	// On Android all assets are packed with the apk in a compressed form, so we need to open them using the asset manager
+ 	// We let tinygltf handle this, by passing the asset manager of our app
+ 	tinygltf::asset_manager = androidApp->activity->assetManager;
+diff --git a/examples/gltfskinning/gltfskinning.cpp b/examples/gltfskinning/gltfskinning.cpp
+index 0f742607..a020a7d8 100644
+--- a/examples/gltfskinning/gltfskinning.cpp
++++ b/examples/gltfskinning/gltfskinning.cpp
+@@ -681,7 +681,7 @@ void VulkanExample::loadglTFFile(std::string filename)
+ 
+ 	this->device = device;
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 	// On Android all assets are packed with the apk in a compressed form, so we need to open them using the asset manager
+ 	// We let tinygltf handle this, by passing the asset manager of our app
+ 	tinygltf::asset_manager = androidApp->activity->assetManager;
+diff --git a/examples/graphicspipelinelibrary/graphicspipelinelibrary.cpp b/examples/graphicspipelinelibrary/graphicspipelinelibrary.cpp
+index 9cf5f559..be8b2d65 100644
+--- a/examples/graphicspipelinelibrary/graphicspipelinelibrary.cpp
++++ b/examples/graphicspipelinelibrary/graphicspipelinelibrary.cpp
+@@ -133,7 +133,7 @@ public:
+ 	// So we use a custom function that only loads the required shader information without actually creating the shader module
+ 	bool loadShaderFile(std::string fileName, ShaderInfo &shaderInfo)
+ 	{
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		// Load shader from compressed asset
+ 		AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, fileName.c_str(), AASSET_MODE_STREAMING);
+ 		assert(asset);
+diff --git a/examples/hostimagecopy/hostimagecopy.cpp b/examples/hostimagecopy/hostimagecopy.cpp
+index 41e6040c..1b1b1670 100644
+--- a/examples/hostimagecopy/hostimagecopy.cpp
++++ b/examples/hostimagecopy/hostimagecopy.cpp
+@@ -108,7 +108,7 @@ public:
+ 		ktxResult result;
+ 		ktxTexture* ktxTexture;
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		// Textures are stored inside the apk on Android (compressed)
+ 		// So they need to be loaded via the asset manager
+ 		AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, filename.c_str(), AASSET_MODE_STREAMING);
+diff --git a/examples/indirectdraw/indirectdraw.cpp b/examples/indirectdraw/indirectdraw.cpp
+index b56c151b..8e1a7590 100644
+--- a/examples/indirectdraw/indirectdraw.cpp
++++ b/examples/indirectdraw/indirectdraw.cpp
+@@ -23,7 +23,7 @@
+ #include "VulkanglTFModel.h"
+ 
+ // Number of instances per object
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ #define OBJECT_INSTANCE_COUNT 1024
+ // Circular range of plant distribution
+ #define PLANT_RADIUS 20.0f
+diff --git a/examples/instancing/instancing.cpp b/examples/instancing/instancing.cpp
+index 0cdc9f00..90530e9d 100644
+--- a/examples/instancing/instancing.cpp
++++ b/examples/instancing/instancing.cpp
+@@ -9,7 +9,7 @@
+ #include "vulkanexamplebase.h"
+ #include "VulkanglTFModel.h"
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ #define INSTANCE_COUNT 4096
+ #else
+ #define INSTANCE_COUNT 8192
+diff --git a/examples/multithreading/multithreading.cpp b/examples/multithreading/multithreading.cpp
+index 89c7d4e9..3799a24f 100644
+--- a/examples/multithreading/multithreading.cpp
++++ b/examples/multithreading/multithreading.cpp
+@@ -98,7 +98,7 @@ public:
+ 		// Get number of max. concurrent threads
+ 		numThreads = std::thread::hardware_concurrency();
+ 		assert(numThreads > 0);
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		LOGD("numThreads = %d", numThreads);
+ #else
+ 		std::cout << "numThreads = " << numThreads << std::endl;
+diff --git a/examples/shadowmapping/shadowmapping.cpp b/examples/shadowmapping/shadowmapping.cpp
+index 0aa5f89e..b3086d83 100644
+--- a/examples/shadowmapping/shadowmapping.cpp
++++ b/examples/shadowmapping/shadowmapping.cpp
+@@ -89,7 +89,7 @@ public:
+ 	// 16 bits of depth is enough for such a small scene
+ 	const VkFormat offscreenDepthFormat{ VK_FORMAT_D16_UNORM };
+ 	// Shadow map dimension
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 	// Use a smaller size on Android for performance reasons
+ 	const uint32_t shadowMapize{ 1024 };
+ #else
+diff --git a/examples/shadowmappingcascade/shadowmappingcascade.cpp b/examples/shadowmappingcascade/shadowmappingcascade.cpp
+index 0a8f1af9..31f73595 100644
+--- a/examples/shadowmappingcascade/shadowmappingcascade.cpp
++++ b/examples/shadowmappingcascade/shadowmappingcascade.cpp
+@@ -18,7 +18,7 @@
+ #include "vulkanexamplebase.h"
+ #include "VulkanglTFModel.h"
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ #define SHADOWMAP_DIM 2048
+ #else
+ #define SHADOWMAP_DIM 4096
+diff --git a/examples/ssao/ssao.cpp b/examples/ssao/ssao.cpp
+index 5bae91a0..52c8eb94 100644
+--- a/examples/ssao/ssao.cpp
++++ b/examples/ssao/ssao.cpp
+@@ -13,7 +13,7 @@
+ #define SSAO_RADIUS 0.3f
+ 
+ // We use a smaller noise kernel size on Android due to lower computational power
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ #define SSAO_NOISE_DIM 4
+ #else
+ #define SSAO_NOISE_DIM 8
+@@ -121,7 +121,7 @@ public:
+ 	{
+ 		title = "Screen space ambient occlusion";
+ 		camera.type = Camera::CameraType::firstperson;
+-#ifndef __ANDROID__
++#ifndef VK_USE_PLATFORM_ANDROID_KHR
+ 		camera.rotationSpeed = 0.25f;
+ #endif
+ 		camera.position = { 1.0f, 0.75f, 0.0f };
+@@ -231,7 +231,7 @@ public:
+ 	void prepareOffscreenFramebuffers()
+ 	{
+ 		// Attachments
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		const uint32_t ssaoWidth = width / 2;
+ 		const uint32_t ssaoHeight = height / 2;
+ #else
+diff --git a/examples/subpasses/subpasses.cpp b/examples/subpasses/subpasses.cpp
+index 60136367..191f074f 100644
+--- a/examples/subpasses/subpasses.cpp
++++ b/examples/subpasses/subpasses.cpp
+@@ -94,7 +94,7 @@ public:
+ 		title = "Subpasses";
+ 		camera.type = Camera::CameraType::firstperson;
+ 		camera.movementSpeed = 5.0f;
+-#ifndef __ANDROID__
++#ifndef VK_USE_PLATFORM_ANDROID_KHR
+ 		camera.rotationSpeed = 0.25f;
+ #endif
+ 		camera.setPosition(glm::vec3(-3.2f, 1.0f, 5.9f));
+diff --git a/examples/terraintessellation/terraintessellation.cpp b/examples/terraintessellation/terraintessellation.cpp
+index 7fb24c49..17250bce 100644
+--- a/examples/terraintessellation/terraintessellation.cpp
++++ b/examples/terraintessellation/terraintessellation.cpp
+@@ -255,7 +255,7 @@ public:
+ 
+ 		// We load the heightmap from an un-compressed ktx image with one channel that contains heights
+ 		std::string filename = getAssetPath() + "textures/terrain_heightmap_r16.ktx";
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		// On Android we need to load the file using the asset manager
+ 		AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, filename.c_str(), AASSET_MODE_STREAMING);
+ 		assert(asset);
+diff --git a/examples/textoverlay/textoverlay.cpp b/examples/textoverlay/textoverlay.cpp
+index c21f56d5..5d1c9bac 100644
+--- a/examples/textoverlay/textoverlay.cpp
++++ b/examples/textoverlay/textoverlay.cpp
+@@ -529,7 +529,7 @@ public:
+ 		glm::vec3 projected = glm::project(glm::vec3(0.0f), uniformData.modelView, uniformData.projection, glm::vec4(0, 0, (float)width, (float)height));
+ 		textOverlay->addText("A torus knot", projected.x, projected.y, TextOverlay::alignCenter);
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ #else
+ 		textOverlay->addText("Press \"space\" to toggle text overlay", 5.0f * ui.scale, 65.0f * ui.scale, TextOverlay::alignLeft);
+ 		textOverlay->addText("Hold middle mouse button and drag to move", 5.0f * ui.scale, 85.0f * ui.scale, TextOverlay::alignLeft);
+diff --git a/examples/texture/texture.cpp b/examples/texture/texture.cpp
+index 318442cb..017270bc 100644
+--- a/examples/texture/texture.cpp
++++ b/examples/texture/texture.cpp
+@@ -113,7 +113,7 @@ public:
+ 		ktxResult result;
+ 		ktxTexture* ktxTexture;
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		// Textures are stored inside the apk on Android (compressed)
+ 		// So they need to be loaded via the asset manager
+ 		AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, filename.c_str(), AASSET_MODE_STREAMING);
+diff --git a/examples/texturearray/texturearray.cpp b/examples/texturearray/texturearray.cpp
+index 115ae488..a3571d96 100644
+--- a/examples/texturearray/texturearray.cpp
++++ b/examples/texturearray/texturearray.cpp
+@@ -89,7 +89,7 @@ public:
+ 		ktxResult result;
+ 		ktxTexture* ktxTexture;
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		// Textures are stored inside the apk on Android (compressed)
+ 		// So they need to be loaded via the asset manager
+ 		AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, filename.c_str(), AASSET_MODE_STREAMING);
+diff --git a/examples/texturecubemap/texturecubemap.cpp b/examples/texturecubemap/texturecubemap.cpp
+index 1df7cf0d..7625fa3f 100644
+--- a/examples/texturecubemap/texturecubemap.cpp
++++ b/examples/texturecubemap/texturecubemap.cpp
+@@ -88,7 +88,7 @@ public:
+ 		ktxResult result;
+ 		ktxTexture* ktxTexture;
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		// Textures are stored inside the apk on Android (compressed)
+ 		// So they need to be loaded via the asset manager
+ 		AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, filename.c_str(), AASSET_MODE_STREAMING);
+diff --git a/examples/texturecubemaparray/texturecubemaparray.cpp b/examples/texturecubemaparray/texturecubemaparray.cpp
+index 11c77dce..7ead1c4c 100644
+--- a/examples/texturecubemaparray/texturecubemaparray.cpp
++++ b/examples/texturecubemaparray/texturecubemaparray.cpp
+@@ -95,7 +95,7 @@ public:
+ 		ktxResult result;
+ 		ktxTexture* ktxTexture;
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		// Textures are stored inside the apk on Android (compressed)
+ 		// So they need to be loaded via the asset manager
+ 		AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, filename.c_str(), AASSET_MODE_STREAMING);
+diff --git a/examples/texturemipmapgen/texturemipmapgen.cpp b/examples/texturemipmapgen/texturemipmapgen.cpp
+index 84aa137b..fdc1cf66 100644
+--- a/examples/texturemipmapgen/texturemipmapgen.cpp
++++ b/examples/texturemipmapgen/texturemipmapgen.cpp
+@@ -87,7 +87,7 @@ public:
+ 		ktxResult result;
+ 		ktxTexture* ktxTexture;
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		// Textures are stored inside the apk on Android (compressed)
+ 		// So they need to be loaded via the asset manager
+ 		AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, filename.c_str(), AASSET_MODE_STREAMING);
+diff --git a/examples/timelinesemaphore/timelinesemaphore.cpp b/examples/timelinesemaphore/timelinesemaphore.cpp
+index 1d765899..db5f66e3 100644
+--- a/examples/timelinesemaphore/timelinesemaphore.cpp
++++ b/examples/timelinesemaphore/timelinesemaphore.cpp
+@@ -10,7 +10,7 @@
+ 
+ #include "vulkanexamplebase.h"
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ // Lower particle count on Android for performance reasons
+ constexpr auto  PARTICLES_PER_ATTRACTOR = 3 * 1024;
+ #else
+diff --git a/examples/triangle/triangle.cpp b/examples/triangle/triangle.cpp
+index 815f446b..4b697238 100644
+--- a/examples/triangle/triangle.cpp
++++ b/examples/triangle/triangle.cpp
+@@ -632,7 +632,7 @@ public:
+ 		size_t shaderSize;
+ 		char* shaderCode{ nullptr };
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		// Load shader from compressed asset
+ 		AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, filename.c_str(), AASSET_MODE_STREAMING);
+ 		assert(asset);
+@@ -1073,7 +1073,7 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_  HINSTANCE hPrevInstance
+ 	return 0;
+ }
+ 
+-#elif defined(__ANDROID__)
++#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+ // Android entry point
+ VulkanExample *vulkanExample;
+ void android_main(android_app* state)
+diff --git a/examples/trianglevulkan13/trianglevulkan13.cpp b/examples/trianglevulkan13/trianglevulkan13.cpp
+index 08e1028f..f336cc58 100644
+--- a/examples/trianglevulkan13/trianglevulkan13.cpp
++++ b/examples/trianglevulkan13/trianglevulkan13.cpp
+@@ -486,7 +486,7 @@ public:
+ 		size_t shaderSize;
+ 		char* shaderCode{ nullptr };
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 		// Load shader from compressed asset
+ 		AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, filename.c_str(), AASSET_MODE_STREAMING);
+ 		assert(asset);
+@@ -926,7 +926,7 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_  HINSTANCE hPrevInstance
+ 	return 0;
+ }
+ 
+-#elif defined(__ANDROID__)
++#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+ // Android entry point
+ VulkanExample *vulkanExample;
+ void android_main(android_app* state)
+diff --git a/examples/vertexattributes/vertexattributes.cpp b/examples/vertexattributes/vertexattributes.cpp
+index 7ba6fdfc..602cdfdb 100644
+--- a/examples/vertexattributes/vertexattributes.cpp
++++ b/examples/vertexattributes/vertexattributes.cpp
+@@ -217,7 +217,7 @@ void VulkanExample::loadglTFFile(std::string filename)
+ 
+ 	this->device = device;
+ 
+-#if defined(__ANDROID__)
++#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+ 	// On Android all assets are packed with the apk in a compressed form, so we need to open them using the asset manager
+ 	// We let tinygltf handle this, by passing the asset manager of our app
+ 	tinygltf::asset_manager = androidApp->activity->assetManager;

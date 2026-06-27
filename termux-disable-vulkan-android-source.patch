@@ -1,0 +1,19 @@
+diff --git a/base/CMakeLists.txt b/base/CMakeLists.txt
+index b0537a19..fb47ab2e 100644
+--- a/base/CMakeLists.txt
++++ b/base/CMakeLists.txt
+@@ -2,6 +2,14 @@
+ # SPDX-License-Identifier: MIT
+ 
+ file(GLOB BASE_SRC "*.cpp" "*.hpp" "*.h" "../external/imgui/*.cpp")
++
++# Termux uses Android/bionic, so the compiler defines __ANDROID__.
++# But this package is built as a native Termux/XCB application, not as
++# an Android native_app_glue/APK target.
++if(NOT CMAKE_CXX_FLAGS MATCHES "VK_USE_PLATFORM_ANDROID_KHR")
++	list(REMOVE_ITEM BASE_SRC "${CMAKE_CURRENT_SOURCE_DIR}/VulkanAndroid.cpp")
++endif()
++
+ file(GLOB BASE_HEADERS "*.hpp" "*.h")
+ 
+ set(KTX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../external/ktx)
