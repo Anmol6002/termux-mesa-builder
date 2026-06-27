@@ -1,4 +1,4 @@
-name: Build Termux Package
+name: Build Termux Package sascha vulkan demos
 
 on:
   workflow_dispatch:
