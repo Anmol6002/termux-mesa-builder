@@ -15,6 +15,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write 
     steps:
     
       - name: Checkout termux-packages
@@ -56,7 +58,7 @@ jobs:
           # Inject foldername override so Termux finds the extracted source
           sed -i "/^TERMUX_PKG_SHA256=/a TERMUX_PKG_FOLDERNAME=$FOLDER_NAME" packages/mesa/build.sh
           # CHANGE 2: Fix 'bsdtar' installation conflict by disabling libarchive programs
-          sed -i '/TERMUX_PKG_SHA256=/a TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" -Dlibarchive:programs=false -Dlibarchive:install_static=false"' packages/mesa/build.sh
+          sed -i '/TERMUX_PKG_SHA256=/a TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" -Dlibarchive:programs=false -Dlibarchive:install_static=false"' packages/mesa/build.sh 
      
       - name: Inject Manual Logic Repairs
         run: |
@@ -121,4 +123,17 @@ jobs:
         with:
           name: termux-mesa-debs-specialized
           path: termux-packages/output/*.deb
+          
+      - name: Create Manual Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: termux-packages/output/*.deb
+          tag_name: "v1.2-specialised-${{ github.run_number }}" # Automatically generates a unique tag name
+          name: "Specialised Force vulkan 1.4 and gpu family checks bypass Build #${{ github.run_number }})"
+          body: |
+            force vuljan 1.4 and a613 and a6xx specialised build tested on a613 working 
+            Custom Mesa build from repository: ${{ github.event.inputs.repo_url }}
+            Branch: ${{ github.event.inputs.branch }}
+          draft: false
+          prerelease: false
           
