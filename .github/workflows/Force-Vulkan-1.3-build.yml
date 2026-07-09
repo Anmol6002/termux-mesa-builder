@@ -111,4 +111,16 @@ jobs:
         with:
           name: termux-mesa-debs-force-v1.3
           path: termux-packages/output/*.deb
+
+      - name: Create Manual Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: termux-packages/output/*.deb
+          tag_name: "v1.3-force-${{ github.run_number }}" # Automatically generates a unique tag name
+          name: "Mesa Force 1.3 (Build #${{ github.run_number }})"
+          body: |
+            Custom Mesa build from repository: ${{ github.event.inputs.repo_url }}
+            Branch: ${{ github.event.inputs.branch }}
+          draft: false
+          prerelease: false
           
