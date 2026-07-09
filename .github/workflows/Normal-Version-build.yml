@@ -15,6 +15,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
     
       - name: Checkout termux-packages
@@ -102,4 +104,20 @@ jobs:
         with:
           name: termux-mesa-debs-normal
           path: termux-packages/output/*.deb
-          
+      
+      - name: Create Manual Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: termux-packages/output/*.deb
+          tag_name: "v1-normal-${{ github.run_number }}" # Automatically generates a unique tag name
+          name: "Normal version Build #${{ github.run_number }})"
+          body: |
+            Normal version with a613 support added. not forcing vulkan 1.3 or 1.4 or anything different than ifdevs 
+            build from here https://github.com/termux/termux-packages/actions/runs/28760600710#artifacts
+            use it from here for archh64 build only  or recommended from the ifdevs link for latest version of mesa for termux
+            Custom Mesa build from repository: ${{ github.event.inputs.repo_url }}
+            Branch: ${{ github.event.inputs.branch }}
+          draft: false
+          prerelease: false
+
+      
