@@ -1,4 +1,4 @@
-name: Build Universal Natron ARM64 (Direct Native Build)
+name: Build Universal Natron ARM64 (Complete Portable Release)
 
 on:
   workflow_dispatch: # Manual trigger from GitHub UI
@@ -63,7 +63,7 @@ jobs:
           path: 'community-pyplugs'
 
       # ====================================================
-      # 2. INSTALL SYSTEM DEPENDENCIES DIRECTLY ON HOST
+      # 2. INSTALL ALL SYSTEM DEPENDENCIES
       # ====================================================
       - name: Install System Build Dependencies
         run: |
@@ -71,14 +71,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             git cmake build-essential pkg-config tar rsync wget \
-            qt5-qmake qtbase5-dev qtmultimedia5-dev libqt5svg5-dev qttools5-dev \
+            qt5-qmake qtbase5-dev qtdeclarative5-dev qtmultimedia5-dev libqt5svg5-dev qttools5-dev \
             libqt5opengl5-dev libqt5xmlpatterns5-dev \
             libboost-serialization-dev libboost-system-dev libboost-thread-dev libboost-filesystem-dev libboost-all-dev \
-            libcairo2-dev libexpat1-dev libpixman-1-dev libpango1.0-dev fontconfig libfontconfig1-dev \
-            python3-dev libshiboken2-dev libpyside2-dev python3-pyside2.qtcore python3-pyside2.qtgui python3-pyside2.qtwidgets python3-qtpy \
-            libopenimageio-dev libopencolorio-dev libopenexr-dev libraw-dev libpng-dev libjpeg-dev libtiff-dev \
-            libswscale-dev libavcodec-dev libavformat-dev libavutil-dev libswresample-dev libsox-dev \
-            libpoppler-glib-dev libfftw3-dev libcurl4-openssl-dev libgoogle-glog-dev libceres-dev libseccomp-dev libunwind-dev libxml2-dev
+            libcairo2-dev libexpat1-dev libpixman-1-dev libpango1.0-dev fontconfig libfontconfig1-dev libfreetype6-dev \
+            python3-dev libshiboken2-dev libpyside2-dev \
+            python3-pyside2.qtcore python3-pyside2.qtgui python3-pyside2.qtwidgets python3-pyside2.qtqml \
+            python3-pyside2.qtquick python3-pyside2.qtsvg python3-pyside2.qtxml python3-pyside2.qtmultimedia python3-qtpy \
+            libopenimageio-dev libopencolorio-dev libopenexr-dev libraw-dev libpng-dev libjpeg-dev libtiff-dev libheif-dev libwebp-dev \
+            libswscale-dev libavcodec-dev libavformat-dev libavutil-dev libswresample-dev libpostproc-dev libavfilter-dev libsox-dev \
+            libpoppler-glib-dev libpoppler-cpp-dev librsvg2-dev \
+            libfftw3-dev libcurl4-openssl-dev libomp-dev zlib1g-dev \
+            libgoogle-glog-dev libceres-dev libseccomp-dev libunwind-dev libxml2-dev
 
       # ====================================================
       # 3. DOWNLOAD & PREPARE OPENCOLORIO CONFIGS
@@ -98,7 +102,7 @@ jobs:
         run: |
           cd natron-core
           
-          # Fix x86-specific signal handler register references for ARM64 compatibility
+          # Patch x86-specific signal handler register references for ARM64 compatibility
           sed -i 's/uc->uc_mcontext.gregs\[REG_EIP\]/NULL/g' Engine/AppManager.cpp || true
           sed -i 's/uc->uc_mcontext.gregs\[REG_RIP\]/NULL/g' Engine/AppManager.cpp || true
 
@@ -160,10 +164,13 @@ jobs:
         run: |
           PKG_NAME="Natron-2.6.0-Linux-arm64"
           mkdir -p ${PKG_NAME}/bin
-          mkdir -p ${PKG_NAME}/lib
+          mkdir -p ${PKG_NAME}/lib/python3/dist-packages
           mkdir -p ${PKG_NAME}/Resources
           mkdir -p ${PKG_NAME}/Plugins/OFX/Natron
           mkdir -p ${PKG_NAME}/Plugins/PyPlugs
+          mkdir -p ${PKG_NAME}/plugins/platforms
+          mkdir -p ${PKG_NAME}/plugins/imageformats
+          mkdir -p ${PKG_NAME}/plugins/iconengines
 
           # A. Copy Executables
           find natron-core/build -maxdepth 3 -type f -name "Natron*" -exec cp {} ${PKG_NAME}/bin/ \;
@@ -182,9 +189,21 @@ jobs:
           # D. Copy Community PyPlugs
           rsync -av --exclude='.git*' community-pyplugs/ ${PKG_NAME}/Plugins/PyPlugs/
 
-          # E. Auto-Bundle Dynamic Shared Libraries (.so)
+          # E. Bundle PySide2 & Shiboken Python Modules
+          cp -r /usr/lib/python3/dist-packages/PySide2 ${PKG_NAME}/lib/python3/dist-packages/ 2>/dev/null || true
+          cp -r /usr/lib/python3/dist-packages/shiboken2* ${PKG_NAME}/lib/python3/dist-packages/ 2>/dev/null || true
+
+          # F. Bundle Qt5 QPA Platform Plugins (libqxcb.so for X11 & Wayland)
+          QT_PLUGINS="/usr/lib/aarch64-linux-gnu/qt5/plugins"
+          if [ -d "$QT_PLUGINS" ]; then
+            cp -r $QT_PLUGINS/platforms ${PKG_NAME}/plugins/ 2>/dev/null || true
+            cp -r $QT_PLUGINS/imageformats ${PKG_NAME}/plugins/ 2>/dev/null || true
+            cp -r $QT_PLUGINS/iconengines ${PKG_NAME}/plugins/ 2>/dev/null || true
+          fi
+
+          # G. Auto-Bundle Dynamic Shared Libraries (.so)
           echo "Harvesting dynamic dependencies..."
-          TARGETS=$(find ${PKG_NAME} -type f \( -name "Natron*" -o -name "*.ofx" -o -name "*.bundle" \))
+          TARGETS=$(find ${PKG_NAME} -type f \( -name "Natron*" -o -name "*.ofx" -o -name "*.bundle" -o -name "*.so*" \))
 
           for target in $TARGETS; do
             ldd "$target" 2>/dev/null | grep "=>" | awk '{print $3}' | grep -v "^$" | while read -r lib; do
@@ -200,11 +219,18 @@ jobs:
             done
           done
 
-          # F. Create Launcher Script
+          # H. Create Launcher Script (Includes Qt, Python, & Software OpenGL options)
           cat << 'EOF' > ${PKG_NAME}/run-natron.sh
           #!/bin/bash
           SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          
+          # Environment variables for bundled libraries & Qt plugins
           export LD_LIBRARY_PATH="${SCRIPT_DIR}/lib:${SCRIPT_DIR}/bin:${LD_LIBRARY_PATH}"
+          export PYTHONPATH="${SCRIPT_DIR}/lib/python3/dist-packages:${SCRIPT_DIR}/lib:${PYTHONPATH}"
+          export QT_PLUGIN_PATH="${SCRIPT_DIR}/plugins:${QT_PLUGIN_PATH}"
+          export QT_QPA_PLATFORM_PLUGIN_PATH="${SCRIPT_DIR}/plugins/platforms"
+          
+          # Plugin and Color Management Paths
           export OFX_PLUGIN_PATH="${SCRIPT_DIR}/Plugins/OFX/Natron:${OFX_PLUGIN_PATH}"
           export NATRON_PLUGIN_PATH="${SCRIPT_DIR}/Plugins/PyPlugs:${NATRON_PLUGIN_PATH}"
           export OCIO="${SCRIPT_DIR}/Resources/OpenColorIO-Configs/blender/config.ocio"
@@ -219,7 +245,7 @@ jobs:
           chmod +x ${PKG_NAME}/run-natron.sh
           chmod +x ${PKG_NAME}/bin/Natron* 2>/dev/null || true
 
-          # G. Compress Tarball
+          # I. Compress Tarball
           tar -czvf ${PKG_NAME}.tar.gz ${PKG_NAME}
 
       # ====================================================
@@ -229,22 +255,24 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v2.6.0-arm64-full
-          name: "Natron 2.6.0 Full ARM64 Suite (Direct Build)"
+          name: "Natron 2.6.0 Full Standalone ARM64 Suite"
           body: |
-            ### Natron 2.6.0 Full ARM64 Linux Build Suite
+            ### Natron 2.6.0 Full Standalone ARM64 Linux Suite
 
-            Built directly on a native Ubuntu 22.04 ARM64 runner (`RB-2.6` branch).
+            Fully self-contained, portable Linux ARM64 build suite.
 
             - **Includes All 4 Official OpenFX Plugin Bundles:**
-              1. `openfx-io`
-              2. `openfx-misc`
-              3. `openfx-arena`
-              4. `openfx-gmic`
+              1. `openfx-io` (Video & Image I/O: HEIC, WebP, EXR, RAW, PNG, JPEG, FFmpeg)
+              2. `openfx-misc` (Transform, Blur, Merge, Keyers, Color, Roto)
+              3. `openfx-arena` (Vector Drawing, Shapes, SVG, Poppler PDF)
+              4. `openfx-gmic` (G'MIC Filters)
             - **Includes Engine & Support:**
               - Natron Core Engine (`RB-2.6` branch)
               - OpenColorIO Configs
               - Community PyPlugs Bundle
-              - Embedded dynamic library dependencies
+              - Bundled Qt5 Platform Plugins (`libqxcb.so`)
+              - Bundled PySide2 & Shiboken2 Python Modules
+              - Embedded dynamic shared libraries
 
             #### Instructions:
             ```bash
