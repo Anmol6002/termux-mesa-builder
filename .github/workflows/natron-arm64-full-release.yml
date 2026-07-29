@@ -46,35 +46,29 @@ jobs:
           path: 'community-pyplugs'
 
       # ====================================================
-      # 2. BUILD EVERYTHING INSIDE UBUNTU 20.04 CONTAINER
+      # 2. BUILD EVERYTHING INSIDE UBUNTU 22.04 CONTAINER (Qt 5.15)
       # ====================================================
-      - name: Compile Natron & OpenFX Plugins in Ubuntu 20.04
+      - name: Compile Natron & OpenFX Plugins in Ubuntu 22.04
         run: |
-          docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace ubuntu:20.04 bash -c "
+          docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace ubuntu:22.04 bash -c "
             set -e
             export DEBIAN_FRONTEND=noninteractive
 
-            # A. Update APT & Install Dependency Packages
+            # A. Update APT & Install Ubuntu 22.04 Packages (Includes Qt 5.15 & CMake 3.22)
             apt-get update && apt-get install -y \
-              git build-essential pkg-config tar rsync python3-pip python3-setuptools \
+              git cmake build-essential pkg-config tar rsync \
               libx11-dev libxext-dev libgl1-mesa-dev libglu1-mesa-dev libglew-dev libegl1-mesa-dev \
               qtbase5-dev qtmultimedia5-dev libqt5svg5-dev qttools5-dev qttools5-dev-tools \
               libqt5opengl5-dev libqt5xmlpatterns5-dev \
               libboost-all-dev libcairo2-dev libpixman-1-dev libpango1.0-dev \
               libopencolorio-dev libopenimageio-dev expat libexpat1-dev fontconfig libfontconfig1-dev \
               libswscale-dev libavcodec-dev libavformat-dev libavutil-dev libswresample-dev libsox-dev \
-              libgoogle-glog-dev libceres-dev libraw-dev libopenexr-dev libpng-dev libjpeg-dev libtiff-dev \
+              libglog-dev libceres-dev libraw-dev libopenexr-dev libpng-dev libjpeg-dev libtiff-dev \
               libseccomp-dev libunwind-dev libxml2-dev \
               python3-dev python3-pyside2.qtcore python3-pyside2.qtgui python3-pyside2.qtwidgets \
               python3-pyside2.qtsvg python3-pyside2.qtxml libpyside2-dev shiboken2 libshiboken2-dev
 
-            # B. Upgrade CMake to latest version via pip (fixes CMake < 3.16.7 error)
-            echo '=== Upgrading CMake ==='
-            pip3 install --upgrade cmake
-            hash -r
-            cmake --version
-
-            # C. Build Natron Core Engine
+            # B. Build Natron Engine
             echo '=== Building Natron Core Engine ==='
             cd /workspace/natron-core
             mkdir -p build && cd build
@@ -84,7 +78,7 @@ jobs:
                   -DBUNDLE_FONTS_CONF=ON ..
             cmake --build . --parallel \$(nproc)
 
-            # D. Build OpenFX-IO Plugins
+            # C. Build OpenFX-IO Plugins
             echo '=== Building OpenFX-IO Plugins ==='
             cd /workspace/openfx-io
             if [ -f "CMakeLists.txt" ]; then
@@ -95,7 +89,7 @@ jobs:
               make CONFIG=release -j\$(nproc)
             fi
 
-            # E. Build OpenFX-Misc Plugins
+            # D. Build OpenFX-Misc Plugins
             echo '=== Building OpenFX-Misc Plugins ==='
             cd /workspace/openfx-misc
             if [ -f "CMakeLists.txt" ]; then
@@ -128,7 +122,7 @@ jobs:
           # C. Copy Community PyPlugs
           rsync -av --exclude='.git*' community-pyplugs/ ${PKG_NAME}/Plugins/PyPlugs/
 
-          # D. Auto-Bundle All Dynamic Shared Libraries (.so)
+          # D. Auto-Bundle Dynamic Shared Libraries (.so)
           echo "Gathering dynamic dependencies via ldd..."
           TARGETS=$(find ${PKG_NAME} -type f \( -name "Natron*" -o -name "*.ofx" \))
 
@@ -137,7 +131,7 @@ jobs:
               if [ -f "$lib" ]; then
                 case "$lib" in
                   *libc.so*|*libpthread.so*|*libdl.so*|*libm.so*|*librt.so*|*libGL.so*|*libEGL.so*|*libdrm.so*|*libgbm.so*|*libX11.so*|*libxcb.so*)
-                    ;; # Exclude host GPU drivers & core glibc
+                    ;; # Exclude host GPU drivers & glibc
                   *)
                     cp -L -n "$lib" ${PKG_NAME}/lib/ 2>/dev/null || true
                     ;;
@@ -173,7 +167,7 @@ jobs:
           body: |
             ### Standalone Universal ARM64 Linux Package
             
-            Distro-agnostic ARM64 build bundled with Qt5, FFmpeg, Boost, Python, OpenColorIO, OpenFX-IO, OpenFX-Misc, and PyPlugs.
+            Distro-agnostic ARM64 build bundled with Qt 5.15, FFmpeg, Boost, Python, OpenColorIO, OpenFX-IO, OpenFX-Misc, and PyPlugs.
 
             #### Usage:
             ```bash
@@ -182,4 +176,4 @@ jobs:
             ./run-natron.sh
             ```
           draft: true
-          files: Natron-2.6.0-Universal-Linux-arm64.tar.gz          
+          files: Natron-2.6.0-Universal-Linux-arm64.tar.gz
