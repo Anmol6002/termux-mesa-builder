@@ -1,7 +1,7 @@
 name: Build Universal Natron ARM64 (All Linux OS)
 
 on:
-  workflow_dispatch: # Manual trigger from phone or browser
+  workflow_dispatch: # Manual trigger from GitHub UI
 
 permissions:
   contents: write
@@ -51,7 +51,7 @@ jobs:
             set -e
             export DEBIAN_FRONTEND=noninteractive
 
-            # 1. Install Build Dependencies
+            # 1. Install Build Dependencies (Corrected for Ubuntu 20.04)
             apt-get update && apt-get install -y \
               git cmake build-essential tar rsync \
               libx11-dev libxext-dev libgl1-mesa-dev libglew-dev \
@@ -59,8 +59,8 @@ jobs:
               libboost-all-dev libcairo2-dev libpixman-1-dev libpango1.0-dev \
               libopencolorio-dev libopenimageio-dev expat libexpat1-dev fontconfig libfontconfig1-dev \
               libswscale-dev libavcodec-dev libavformat-dev libavutil-dev \
-              libglog-dev libceres-dev libraw-dev libopenexr-dev \
-              python3-dev python3-pyside2.qtcore python3-pyside2.qtgui python3-pyside2.widgets
+              libgoogle-glog-dev libceres-dev libraw-dev libopenexr-dev \
+              python3-dev python3-pyside2 libpyside2-dev
 
             # 2. Build Natron Engine
             cd /workspace/natron-core
@@ -100,16 +100,14 @@ jobs:
 
           # 4. Auto-Bundle Dynamic Shared Libraries (.so)
           echo "Gathering dynamic dependencies..."
-          # Find all binaries and compiled .ofx plugins
           TARGETS=$(find ${PKG_NAME} -type f \( -name "Natron*" -o -name "*.ofx" \))
 
           for target in $TARGETS; do
             ldd "$target" 2>/dev/null | grep "=>" | awk '{print $3}' | grep -v "^$" | while read -r lib; do
-              # Exclude core system/graphics libraries that host GPU drivers must provide
               if [ -f "$lib" ]; then
                 case "$lib" in
                   *libc.so*|*libpthread.so*|*libdl.so*|*libm.so*|*librt.so*|*libGL.so*|*libEGL.so*|*libdrm.so*|*libgbm.so*|*libX11.so*)
-                    ;; # Skip host-level libraries
+                    ;; # Exclude host GPU drivers & core glibc
                   *)
                     cp -L -n "$lib" ${PKG_NAME}/lib/ 2>/dev/null || true
                     ;;
@@ -118,7 +116,7 @@ jobs:
             done
           done
 
-          # 5. Create Standalone Launcher Script
+          # 5. Create Launcher Script
           cat << 'EOF' > ${PKG_NAME}/run-natron.sh
           #!/bin/bash
           SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -131,7 +129,7 @@ jobs:
           chmod +x ${PKG_NAME}/run-natron.sh
           chmod +x ${PKG_NAME}/bin/Natron* 2>/dev/null || true
 
-          # 6. Compress into Tarball
+          # 6. Compress Tarball
           tar -czvf ${PKG_NAME}.tar.gz ${PKG_NAME}
 
       # ====================================================
@@ -145,13 +143,7 @@ jobs:
           body: |
             ### Standalone Universal ARM64 Linux Package
             
-            This release is **distro-agnostic**. It bundles Qt5, FFmpeg, Boost, Python, OpenColorIO, and OpenFX plugins so it runs on almost any ARM64 Linux distro without installing system packages.
-
-            #### Tested Compatibility:
-            - Ubuntu 20.04 / 22.04 / 24.04+
-            - Debian 11 / 12 / 13+
-            - Raspberry Pi OS (64-bit)
-            - Fedora, Arch Linux, Manjaro ARM, Asahi Linux
+            Distro-agnostic ARM64 build bundled with Qt5, FFmpeg, Boost, Python, OpenColorIO, and OpenFX plugins.
 
             #### Usage:
             ```bash
