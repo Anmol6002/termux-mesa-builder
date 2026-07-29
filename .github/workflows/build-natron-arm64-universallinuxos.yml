@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: 'NatronGitHub/Natron'
-          ref: 'RB-2.5' # Official Stable Branch
+          ref: 'RB-2.6' # Official Stable Branch
           submodules: 'recursive'
           fetch-depth: 1
           path: 'natron-core'
