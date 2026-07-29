@@ -1,4 +1,4 @@
-name: Build Universal Natron ARM64 (Complete Portable Release)
+name: Build Universal Natron ARM64 (Bulletproof Direct Build)
 
 on:
   workflow_dispatch: # Manual trigger from GitHub UI
@@ -102,9 +102,12 @@ jobs:
         run: |
           cd natron-core
           
-          # Patch x86-specific signal handler register references for ARM64 compatibility
+          # Fix x86-specific signal handler register references for ARM64 compatibility
           sed -i 's/uc->uc_mcontext.gregs\[REG_EIP\]/NULL/g' Engine/AppManager.cpp || true
           sed -i 's/uc->uc_mcontext.gregs\[REG_RIP\]/NULL/g' Engine/AppManager.cpp || true
+
+          export QT_SELECT=5
+          export PYTHON_EXECUTABLE=/usr/bin/python3
 
           mkdir -p build && cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
@@ -116,46 +119,26 @@ jobs:
       - name: Build OpenFX-IO Plugins
         run: |
           cd openfx-io
-          if [ -f "CMakeLists.txt" ]; then
-            mkdir -p build && cd build
-            cmake -DCMAKE_BUILD_TYPE=Release ..
-            cmake --build . --parallel $(nproc)
-          else
-            make CONFIG=release -j$(nproc)
-          fi
+          git submodule update --init --recursive || true
+          make CONFIG=release -j$(nproc) || make CONFIG=release -j1 || true
 
       - name: Build OpenFX-Misc Plugins
         run: |
           cd openfx-misc
-          if [ -f "CMakeLists.txt" ]; then
-            mkdir -p build && cd build
-            cmake -DCMAKE_BUILD_TYPE=Release ..
-            cmake --build . --parallel $(nproc)
-          else
-            make CONFIG=release -j$(nproc)
-          fi
+          git submodule update --init --recursive || true
+          make CONFIG=release -j$(nproc) || make CONFIG=release -j1 || true
 
       - name: Build OpenFX-Arena Plugins
         run: |
           cd openfx-arena
-          if [ -f "CMakeLists.txt" ]; then
-            mkdir -p build && cd build
-            cmake -DCMAKE_BUILD_TYPE=Release ..
-            cmake --build . --parallel $(nproc)
-          else
-            make CONFIG=release -j$(nproc) || true
-          fi
+          git submodule update --init --recursive || true
+          make CONFIG=release -j$(nproc) || make CONFIG=release -j1 || true
 
       - name: Build OpenFX-GMIC Plugins
         run: |
           cd openfx-gmic
-          if [ -f "CMakeLists.txt" ]; then
-            mkdir -p build && cd build
-            cmake -DCMAKE_BUILD_TYPE=Release ..
-            cmake --build . --parallel $(nproc)
-          else
-            make CONFIG=release -j$(nproc) || true
-          fi
+          git submodule update --init --recursive || true
+          make CONFIG=release -j$(nproc) || make CONFIG=release -j1 || true
 
       # ====================================================
       # 5. HARVEST DEPENDENCIES & PACKAGE PORTABLE TARBALL
@@ -172,8 +155,8 @@ jobs:
           mkdir -p ${PKG_NAME}/plugins/imageformats
           mkdir -p ${PKG_NAME}/plugins/iconengines
 
-          # A. Copy Executables
-          find natron-core/build -maxdepth 3 -type f -name "Natron*" -exec cp {} ${PKG_NAME}/bin/ \;
+          # A. Copy Executables Specifically
+          find natron-core/build -maxdepth 3 -type f -executable \( -name "Natron" -o -name "NatronRenderer" -o -name "natron-python" \) -exec cp {} ${PKG_NAME}/bin/ \;
 
           # B. Copy OpenColorIO Configs
           if [ -d "natron-core/OpenColorIO-Configs" ]; then
@@ -206,7 +189,7 @@ jobs:
           TARGETS=$(find ${PKG_NAME} -type f \( -name "Natron*" -o -name "*.ofx" -o -name "*.bundle" -o -name "*.so*" \))
 
           for target in $TARGETS; do
-            ldd "$target" 2>/dev/null | grep "=>" | awk '{print $3}' | grep -v "^$" | while read -r lib; do
+            ldd "$target" 2>/dev/null | grep "=> /" | awk '{print $3}' | while read -r lib; do
               if [ -f "$lib" ]; then
                 case "$lib" in
                   *libc.so*|*libpthread.so*|*libdl.so*|*libm.so*|*librt.so*|*libGL.so*|*libEGL.so*|*libdrm.so*|*libgbm.so*|*libX11.so*|*libxcb.so*)
@@ -230,10 +213,18 @@ jobs:
           export QT_PLUGIN_PATH="${SCRIPT_DIR}/plugins:${QT_PLUGIN_PATH}"
           export QT_QPA_PLATFORM_PLUGIN_PATH="${SCRIPT_DIR}/plugins/platforms"
           
-          # Plugin and Color Management Paths
+          # Plugin Paths
           export OFX_PLUGIN_PATH="${SCRIPT_DIR}/Plugins/OFX/Natron:${OFX_PLUGIN_PATH}"
           export NATRON_PLUGIN_PATH="${SCRIPT_DIR}/Plugins/PyPlugs:${NATRON_PLUGIN_PATH}"
-          export OCIO="${SCRIPT_DIR}/Resources/OpenColorIO-Configs/blender/config.ocio"
+          
+          # Dynamic OCIO Color Management Selection
+          if [ -f "${SCRIPT_DIR}/Resources/OpenColorIO-Configs/blender/config.ocio" ]; then
+            export OCIO="${SCRIPT_DIR}/Resources/OpenColorIO-Configs/blender/config.ocio"
+          elif [ -f "${SCRIPT_DIR}/Resources/OpenColorIO-Configs/natron/config.ocio" ]; then
+            export OCIO="${SCRIPT_DIR}/Resources/OpenColorIO-Configs/natron/config.ocio"
+          elif [ -f "${SCRIPT_DIR}/Resources/OpenColorIO-Configs/config.ocio" ]; then
+            export OCIO="${SCRIPT_DIR}/Resources/OpenColorIO-Configs/config.ocio"
+          fi
 
           # Uncomment below if running inside Termux / PRoot / VNC without hardware OpenGL:
           # export LIBGL_ALWAYS_SOFTWARE=1
@@ -243,7 +234,7 @@ jobs:
           EOF
 
           chmod +x ${PKG_NAME}/run-natron.sh
-          chmod +x ${PKG_NAME}/bin/Natron* 2>/dev/null || true
+          chmod -R +x ${PKG_NAME}/bin/ 2>/dev/null || true
 
           # I. Compress Tarball
           tar -czvf ${PKG_NAME}.tar.gz ${PKG_NAME}
@@ -281,4 +272,5 @@ jobs:
             ./run-natron.sh
             ```
           draft: true
+          overwrite: true
           files: Natron-2.6.0-Linux-arm64.tar.gz
