@@ -80,7 +80,7 @@ jobs:
             python3-pyside2.qtquick python3-pyside2.qtsvg python3-pyside2.qtxml python3-pyside2.qtmultimedia python3-qtpy \
             libopenimageio-dev libopencolorio-dev libopenexr-dev libraw-dev libpng-dev libjpeg-dev libtiff-dev libheif-dev libwebp-dev \
             libswscale-dev libavcodec-dev libavformat-dev libavutil-dev libswresample-dev libpostproc-dev libavfilter-dev libsox-dev \
-            libpoppler-glib-dev libpoppler-cpp-dev librsvg2-dev libseexpr-dev \
+            libpoppler-glib-dev libpoppler-cpp-dev librsvg2-dev \
             libfftw3-dev libcurl4-openssl-dev libomp-dev zlib1g-dev \
             libgoogle-glog-dev libceres-dev libseccomp-dev libunwind-dev libxml2-dev
 
