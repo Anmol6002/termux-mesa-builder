@@ -1,28 +1,19 @@
 name: Build Natron ARM64 (With Plugins & Releases)
 
 on:
-  workflow_dispatch: # Triggers the build completely on-demand from your phone/browser
+  workflow_dispatch: 
 
 permissions:
-  contents: write # Crucial permission allowing the runner to draft GitHub Releases
+  contents: write 
 
 jobs:
   build:
-    name: Build Natron on ${{ matrix.os }} (ARM64)
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: linux
-            runner: ubuntu-latest
-          - os: macos
-            runner: macos-14 # Apple Silicon M-series Hardware
-          - os: windows
-            runner: windows-latest
-
+    name: Build Natron on Linux (Native ARM64)
+    # Uses GitHub's native ARM64 Ubuntu runner
+    runs-on: ubuntu-24.04-arm64
+    
     steps:
-      # Step 1: Clone Natron Core Engine from the official source
+      # Step 1: Clone Natron Core Engine
       - name: Checkout Source & Plugins
         uses: actions/checkout@v4
         with:
@@ -37,125 +28,50 @@ jobs:
           repository: 'NatronGitHub/natron-plugins'
           path: 'community-pyplugs'
 
-      # ====================================================
-      # LINUX ARM64 ENVIRONMENT
-      # ====================================================
-      - name: Set up QEMU (Linux ARM64 Emulation)
-        if: matrix.os == 'linux'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
+      # Step 3: Install dependencies directly on the native host
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git cmake build-essential libx11-dev libxext-dev libgl1-mesa-dev \
+            qtbase5-dev qtmultimedia5-dev libqt5svg5-dev libboost-all-dev \
+            libcairo2-dev libopencolorio-dev libopenimageio-dev expat libexpat1-dev \
+            fontconfig libfontconfig1-dev libpixman-1-dev zip
 
+      # Step 4: Compile natively at full hardware speed
       - name: Build Linux ARM64 Binary & Plugins
-        if: matrix.os == 'linux'
         run: |
-          docker run --rm --platform linux/arm64 -v ${{ github.workspace }}:/workspace -w /workspace ubuntu:22.04 bash -c "
-            apt-get update && apt-get install -y \
-              git cmake build-essential libx11-dev libxext-dev libgl1-mesa-dev \
-              qtbase5-dev qtmultimedia5-dev libqt5svg5-dev libboost-all-dev \
-              libcairo2-dev libopencolorio-dev libopenimageio-dev expat libexpat1-dev \
-              fontconfig libfontconfig1-dev libpixman-1-dev zip
-            
-            mkdir build_linux && cd build_linux
-            cmake -DCMAKE_BUILD_TYPE=Release -DAUDIO=ON -DRICHTEXT=ON -DBUNDLE_FONTS_CONF=ON ..
-            cmake --build . --parallel \$(nproc)
-            cd ..
+          mkdir build_linux && cd build_linux
+          cmake -DCMAKE_BUILD_TYPE=Release -DAUDIO=ON -DRICHTEXT=ON -DBUNDLE_FONTS_CONF=ON ..
+          cmake --build . --parallel $(nproc)
+          cd ..
 
-            # Pack up Binaries + PyPlugs
-            mkdir -p dist/linux-arm64/Plugins/PyPlugs
+      # Step 5: Package the binaries and plugins
+      - name: Package Release Assets
+        run: |
+          mkdir -p dist/linux-arm64/Plugins/PyPlugs
+          # Use 'find' or explicit paths if your build setup copies binaries to a specific folder
+          if [ -d "build_linux/bin" ]; then
             cp -r build_linux/bin/* dist/linux-arm64/
-            cp -r community-pyplugs/* dist/linux-arm64/Plugins/PyPlugs/
-            cd dist && zip -r ../natron-linux-arm64.zip linux-arm64/
-          "
-
-      # ====================================================
-      # MACOS ARM64 ENVIRONMENT (FIXED)
-      # ====================================================
-      - name: Install macOS Dependencies
-        if: matrix.os == 'macos'
-        run: |
-          # Tap the FreeCAD repository to pull working Qt5 Python bindings for Apple Silicon
-          brew tap freecad/freecad
-          brew install cmake qt@5 boost cairo opencolorio openimageio pixman expat fontconfig \
-                       freecad/freecad/shiboken2@5.15.5 freecad/freecad/pyside2@5.15.5
+          else
+            echo "Warning: build_linux/bin not found. Adjusting copy path..."
+            cp build_linux/Natron dist/linux-arm64/ || true
+          fi
           
-          # Force export paths so CMake can intercept the packages
-          echo "brew_path=$(brew --prefix)" >> $GITHUB_ENV
-          echo "SHIBOKEN_DIR=$(brew --prefix freecad/freecad/shiboken2@5.15.5)" >> $GITHUB_ENV
-          echo "PYSIDE_DIR=$(brew --prefix freecad/freecad/pyside2@5.15.5)" >> $GITHUB_ENV
-
-      - name: Build macOS ARM64 App Bundle
-        if: matrix.os == 'macos'
-        run: |
-          mkdir build_mac && cd build_mac
+          # Copy PyPlugs contents safely
+          cp -r community-pyplugs/* dist/linux-arm64/Plugins/PyPlugs/
           
-          # Option A: Building with Full PySide2/Shiboken Support Enabled
-          cmake -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_PREFIX_PATH="${{ env.brew_path }}/opt/qt@5;${{ env.SHIBOKEN_DIR }};${{ env.PYSIDE_DIR }}" \
-                -DAUDIO=ON -DRICHTEXT=ON -DBUNDLE_FONTS_CONF=ON ..
-                
-          # Option B: Fallback (Uncomment this and comment out Option A above if compilation fails on Python 3.14 types)
-          # cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_PYTHON=OFF -DCMAKE_PREFIX_PATH="${{ env.brew_path }}/opt/qt@5" ..
+          # Compress everything
+          cd dist
+          zip -r ../natron-linux-arm64.zip linux-arm64/
 
-          cmake --build . --parallel $(sysctl -n hw.ncpu)
-          cd ..
-          
-          mkdir -p dist/macos-arm64/Natron.app/Contents/Plugins/PyPlugs || mkdir -p dist/macos-arm64/Plugins/PyPlugs
-          cp -r build_mac/*.app dist/macos-arm64/ 2>/dev/null || cp -r build_mac/bin/* dist/macos-arm64/
-          cp -r community-pyplugs/* dist/macos-arm64/*/*/Plugins/PyPlugs/ 2>/dev/null || cp -r community-pyplugs/* dist/macos-arm64/Plugins/PyPlugs/
-          cd dist && zip -r ../natron-macos-arm64.zip macos-arm64/
-
-      # ====================================================
-      # WINDOWS ARM64 ENVIRONMENT
-      # ====================================================
-      - name: Set up Windows MSVC ARM64 Toolchain
-        if: matrix.os == 'windows'
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: amd64_arm64
-
-      - name: Cache Vcpkg Packages
-        if: matrix.os == 'windows'
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ github.workspace }}/vcpkg/installed
-            C:/vcpkg/installed
-            AppData/Local/vcpkg/archives
-          key: vcpkg-windows-arm64-${{ hashFiles('**/CMakeLists.txt') }}
-          restore-keys: |
-            vcpkg-windows-arm64-
-            
-      - name: Install Windows ARM64 Dependencies via Vcpkg
-        if: matrix.os == 'windows'
-        run: |
-          vcpkg install qt5-base boost cairo opencolorio openimageio --triplet=arm64-windows
-
-      - name: Build Windows ARM64 Executable
-        if: matrix.os == 'windows'
-        shell: cmd
-        run: |
-          mkdir build_win && cd build_win
-          cmake -G "Visual Studio 17 2022" -A ARM64 ^
-                -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake ^
-                -DCMAKE_BUILD_TYPE=Release -DAUDIO=ON -DRICHTEXT=ON -DBUNDLE_FONTS_CONF=ON ..
-          cmake --build . --config Release --parallel %NUMBER_OF_PROCESSORS%
-          cd ..
-          
-          mkdir dist\windows-arm64\Plugins\PyPlugs
-          xcopy /E /I build_win\Release dist\windows-arm64
-          xcopy /E /I community-pyplugs dist\windows-arm64\Plugins\PyPlugs
-          powershell Compress-Archive -Path dist\windows-arm64 -DestinationPath natron-windows-arm64.zip
-
-      # ====================================================
-      # AUTOMATED GITHUB RELEASE GENERATION
-      # ====================================================
+      # Step 6: Automate the GitHub Release Creation
       - name: Generate Draft Release with Compilation Zip Files
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v2.6.0-arm64-custom
-          name: "Natron Full ARM64 Build Suite"
-          body: "Automated custom ARM64 multi-OS binaries for Natron with PyPlugs, Audio, and RichText parity flags active."
-          draft: true # Saves it securely as a draft so you can click publish when ready
-          files: natron-*.zip
+          name: "Natron Full ARM64 Linux Build Suite"
+          body: "Automated custom ARM64 Linux binaries for Natron with PyPlugs, Audio, and RichText parity flags active."
+          draft: true 
+          files: natron-linux-arm64.zip          
           
