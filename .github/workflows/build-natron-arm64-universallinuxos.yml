@@ -80,7 +80,7 @@ jobs:
             python3-pyside2.qtquick python3-pyside2.qtsvg python3-pyside2.qtxml python3-pyside2.qtmultimedia python3-qtpy \
             libopenimageio-dev libopencolorio-dev libopenexr-dev libraw-dev libpng-dev libjpeg-dev libtiff-dev libheif-dev libwebp-dev \
             libswscale-dev libavcodec-dev libavformat-dev libavutil-dev libswresample-dev libpostproc-dev libavfilter-dev libsox-dev \
-            libpoppler-glib-dev libpoppler-cpp-dev librsvg2-dev libseexpr-dev \
+            libpoppler-glib-dev libpoppler-cpp-dev librsvg2-dev \
             libfftw3-dev libcurl4-openssl-dev libomp-dev zlib1g-dev \
             libgoogle-glog-dev libceres-dev libseccomp-dev libunwind-dev libxml2-dev
 
@@ -129,11 +129,11 @@ jobs:
             cd ${{ github.workspace }}/$repo
             git submodule update --init --recursive || true
 
-            # Build with explicit Linux-aarch64 architecture flag
+            # A. Build at root level
             make CONFIG=release ARCH=Linux-aarch64 BITS=64 -k -j$(nproc) || true
             make install PLUGINPATH="${DEST_OFX}" CONFIG=release ARCH=Linux-aarch64 BITS=64 || true
 
-            # Build sub-plugin directories
+            # B. Build each sub-plugin directory directly
             find . -maxdepth 2 -name "Makefile" | while read -r mkfile; do
               dir=$(dirname "$mkfile")
               if [ "$dir" != "." ] && [ "$dir" != "./openfx" ] && [ "$dir" != "./SupportExt" ]; then
@@ -145,7 +145,7 @@ jobs:
               fi
             done
 
-            # Copy any compiled .bundle or .ofx files found in the repo
+            # C. Copy any compiled .bundle or .ofx files found in the repo
             find . -type d -name "*.bundle" -exec cp -r {} "${DEST_OFX}/" \; 2>/dev/null || true
             find . -type f -name "*.ofx" -exec cp {} "${DEST_OFX}/" \; 2>/dev/null || true
           done
