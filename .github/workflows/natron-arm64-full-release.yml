@@ -69,21 +69,34 @@ jobs:
           "
 
       # ====================================================
-      # MACOS ARM64 ENVIRONMENT
+      # MACOS ARM64 ENVIRONMENT (FIXED)
       # ====================================================
       - name: Install macOS Dependencies
         if: matrix.os == 'macos'
         run: |
-          brew install cmake qt@5 boost cairo opencolorio openimageio pixman expat fontconfig
+          # Tap the FreeCAD repository to pull working Qt5 Python bindings for Apple Silicon
+          brew tap freecad/freecad
+          brew install cmake qt@5 boost cairo opencolorio openimageio pixman expat fontconfig \
+                       freecad/freecad/shiboken2@5.15.5 freecad/freecad/pyside2@5.15.5
+          
+          # Force export paths so CMake can intercept the packages
           echo "brew_path=$(brew --prefix)" >> $GITHUB_ENV
+          echo "SHIBOKEN_DIR=$(brew --prefix freecad/freecad/shiboken2@5.15.5)" >> $GITHUB_ENV
+          echo "PYSIDE_DIR=$(brew --prefix freecad/freecad/pyside2@5.15.5)" >> $GITHUB_ENV
 
       - name: Build macOS ARM64 App Bundle
         if: matrix.os == 'macos'
         run: |
           mkdir build_mac && cd build_mac
+          
+          # Option A: Building with Full PySide2/Shiboken Support Enabled
           cmake -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_PREFIX_PATH="${{ env.brew_path }}/opt/qt@5" \
+                -DCMAKE_PREFIX_PATH="${{ env.brew_path }}/opt/qt@5;${{ env.SHIBOKEN_DIR }};${{ env.PYSIDE_DIR }}" \
                 -DAUDIO=ON -DRICHTEXT=ON -DBUNDLE_FONTS_CONF=ON ..
+                
+          # Option B: Fallback (Uncomment this and comment out Option A above if compilation fails on Python 3.14 types)
+          # cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_PYTHON=OFF -DCMAKE_PREFIX_PATH="${{ env.brew_path }}/opt/qt@5" ..
+
           cmake --build . --parallel $(sysctl -n hw.ncpu)
           cd ..
           
@@ -101,6 +114,18 @@ jobs:
         with:
           arch: amd64_arm64
 
+      - name: Cache Vcpkg Packages
+        if: matrix.os == 'windows'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/vcpkg/installed
+            C:/vcpkg/installed
+            AppData/Local/vcpkg/archives
+          key: vcpkg-windows-arm64-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: |
+            vcpkg-windows-arm64-
+            
       - name: Install Windows ARM64 Dependencies via Vcpkg
         if: matrix.os == 'windows'
         run: |
