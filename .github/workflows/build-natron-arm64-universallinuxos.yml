@@ -70,7 +70,7 @@ jobs:
           sudo add-apt-repository -y universe
           sudo apt-get update
           sudo apt-get install -y \
-            git cmake build-essential pkg-config tar rsync wget \
+            git cmake build-essential pkg-config tar rsync wget file \
             qt5-qmake qtbase5-dev qtdeclarative5-dev qtmultimedia5-dev libqt5svg5-dev qttools5-dev \
             libqt5opengl5-dev libqt5xmlpatterns5-dev \
             libboost-serialization-dev libboost-system-dev libboost-thread-dev libboost-filesystem-dev libboost-all-dev \
@@ -80,7 +80,7 @@ jobs:
             python3-pyside2.qtquick python3-pyside2.qtsvg python3-pyside2.qtxml python3-pyside2.qtmultimedia python3-qtpy \
             libopenimageio-dev libopencolorio-dev libopenexr-dev libraw-dev libpng-dev libjpeg-dev libtiff-dev libheif-dev libwebp-dev \
             libswscale-dev libavcodec-dev libavformat-dev libavutil-dev libswresample-dev libpostproc-dev libavfilter-dev libsox-dev \
-            libpoppler-glib-dev libpoppler-cpp-dev librsvg2-dev \
+            libpoppler-glib-dev libpoppler-cpp-dev librsvg2-dev libseexpr-dev \
             libfftw3-dev libcurl4-openssl-dev libomp-dev zlib1g-dev \
             libgoogle-glog-dev libceres-dev libseccomp-dev libunwind-dev libxml2-dev
 
@@ -129,25 +129,35 @@ jobs:
             cd ${{ github.workspace }}/$repo
             git submodule update --init --recursive || true
 
-            # A. Build at root level
-            make CONFIG=release BITS=64 -k -j$(nproc) || true
-            make install PLUGINPATH="${DEST_OFX}" CONFIG=release BITS=64 || true
+            # Build with explicit Linux-aarch64 architecture flag
+            make CONFIG=release ARCH=Linux-aarch64 BITS=64 -k -j$(nproc) || true
+            make install PLUGINPATH="${DEST_OFX}" CONFIG=release ARCH=Linux-aarch64 BITS=64 || true
 
-            # B. Build each sub-plugin directory directly
+            # Build sub-plugin directories
             find . -maxdepth 2 -name "Makefile" | while read -r mkfile; do
               dir=$(dirname "$mkfile")
               if [ "$dir" != "." ] && [ "$dir" != "./openfx" ] && [ "$dir" != "./SupportExt" ]; then
                 (
                   cd "$dir"
-                  make CONFIG=release BITS=64 -k -j$(nproc) || true
-                  make install PLUGINPATH="${DEST_OFX}" CONFIG=release BITS=64 || true
+                  make CONFIG=release ARCH=Linux-aarch64 BITS=64 -k -j$(nproc) || true
+                  make install PLUGINPATH="${DEST_OFX}" CONFIG=release ARCH=Linux-aarch64 BITS=64 || true
                 ) 2>/dev/null || true
               fi
             done
 
-            # C. Copy any compiled .bundle or .ofx files found in the repo
+            # Copy any compiled .bundle or .ofx files found in the repo
             find . -type d -name "*.bundle" -exec cp -r {} "${DEST_OFX}/" \; 2>/dev/null || true
             find . -type f -name "*.ofx" -exec cp {} "${DEST_OFX}/" \; 2>/dev/null || true
+          done
+
+          # Normalize OFX bundle architecture directory names (Linux-x86-64 -> Linux-aarch64 & Linux-arm64)
+          echo "=========================================="
+          echo "NORMALIZING OFX BUNDLE ARCHITECTURE PATHS..."
+          echo "=========================================="
+          find ${DEST_OFX} -type d \( -name "Linux-x86-64" -o -name "Linux-64-release" \) | while read -r olddir; do
+            parent=$(dirname "$olddir")
+            cp -r "$olddir" "$parent/Linux-aarch64" 2>/dev/null || true
+            cp -r "$olddir" "$parent/Linux-arm64" 2>/dev/null || true
           done
 
           echo "=========================================="
@@ -229,7 +239,14 @@ jobs:
             done
           done
 
-          # I. Create Launcher Script
+          # I. Verify Binary Architecture
+          echo "=========================================="
+          echo "VERIFYING BINARY ARCHITECTURES:"
+          echo "=========================================="
+          file ${PKG_NAME}/bin/Natron
+          find ${PKG_NAME}/Plugins/OFX -type f -name "*.ofx" -exec file {} + | head -n 10
+
+          # J. Create Launcher Script
           cat << 'EOF' > ${PKG_NAME}/run-natron.sh
           #!/bin/bash
           SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -263,7 +280,7 @@ jobs:
           chmod +x ${PKG_NAME}/run-natron.sh
           chmod -R +x ${PKG_NAME}/bin/ 2>/dev/null || true
 
-          # J. Compress Tarball
+          # K. Compress Tarball
           tar -czvf ${PKG_NAME}.tar.gz ${PKG_NAME}
 
       # ====================================================
