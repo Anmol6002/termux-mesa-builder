@@ -1,0 +1,250 @@
+name: Build Universal Natron ARM64 (Direct Native Build)
+
+on:
+  workflow_dispatch: # Manual trigger from GitHub UI
+
+permissions:
+  contents: write
+
+jobs:
+  build-arm64:
+    name: Build Natron Engine + All 4 Plugin Suites (ARM64)
+    runs-on: ubuntu-22.04-arm # Native ARM64 Ubuntu 22.04 Runner (No Docker needed!)
+
+    steps:
+      # ====================================================
+      # 1. CHECKOUT ALL SOURCES (STABLE BRANCH RB-2.5)
+      # ====================================================
+      - name: Checkout Natron Core Engine
+        uses: actions/checkout@v4
+        with:
+          repository: 'NatronGitHub/Natron'
+          ref: 'RB-2.5' # Official Stable Branch
+          submodules: 'recursive'
+          fetch-depth: 1
+          path: 'natron-core'
+
+      - name: Checkout OpenFX-IO (1/4)
+        uses: actions/checkout@v4
+        with:
+          repository: 'NatronGitHub/openfx-io'
+          submodules: 'recursive'
+          fetch-depth: 1
+          path: 'openfx-io'
+
+      - name: Checkout OpenFX-Misc (2/4)
+        uses: actions/checkout@v4
+        with:
+          repository: 'NatronGitHub/openfx-misc'
+          submodules: 'recursive'
+          fetch-depth: 1
+          path: 'openfx-misc'
+
+      - name: Checkout OpenFX-Arena (3/4)
+        uses: actions/checkout@v4
+        with:
+          repository: 'NatronGitHub/openfx-arena'
+          submodules: 'recursive'
+          fetch-depth: 1
+          path: 'openfx-arena'
+
+      - name: Checkout OpenFX-GMIC (4/4)
+        uses: actions/checkout@v4
+        with:
+          repository: 'NatronGitHub/openfx-gmic'
+          submodules: 'recursive'
+          fetch-depth: 1
+          path: 'openfx-gmic'
+
+      - name: Checkout Community PyPlugs
+        uses: actions/checkout@v4
+        with:
+          repository: 'NatronGitHub/natron-plugins'
+          path: 'community-pyplugs'
+
+      # ====================================================
+      # 2. INSTALL SYSTEM DEPENDENCIES DIRECTLY ON HOST
+      # ====================================================
+      - name: Install System Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git cmake build-essential pkg-config tar rsync wget \
+            qt5-qmake qtbase5-dev qtmultimedia5-dev libqt5svg5-dev qttools5-dev \
+            libqt5opengl5-dev libqt5xmlpatterns5-dev \
+            libboost-serialization-dev libboost-system-dev libboost-thread-dev libboost-filesystem-dev libboost-all-dev \
+            libcairo2-dev libexpat1-dev libpixman-1-dev libpango1.0-dev fontconfig libfontconfig1-dev \
+            python3-dev libshiboken2-dev libpyside2-dev python3-pyside2.qtwidgets python3-qtpy \
+            libopenimageio-dev libopencolorio-dev libopenexr-dev libraw-dev libpng-dev libjpeg-dev libtiff-dev \
+            libswscale-dev libavcodec-dev libavformat-dev libavutil-dev libswresample-dev libsox-dev \
+            libpoppler-glib-dev libfftw3-dev libcurl4-openssl-dev libglog-dev libceres-dev libseccomp-dev libunwind-dev libxml2-dev
+
+      # ====================================================
+      # 3. DOWNLOAD & PREPARE OPENCOLORIO CONFIGS
+      # ====================================================
+      - name: Download OpenColorIO Configs
+        run: |
+          cd natron-core
+          wget https://github.com/NatronGitHub/OpenColorIO-Configs/archive/Natron-v2.5.tar.gz
+          tar -xzf Natron-v2.5.tar.gz
+          mv OpenColorIO-Configs-Natron-v2.5 OpenColorIO-Configs
+          rm Natron-v2.5.tar.gz
+
+      # ====================================================
+      # 4. COMPILE NATRON ENGINE & ALL 4 PLUGIN SUITES
+      # ====================================================
+      - name: Build Natron Engine
+        run: |
+          cd natron-core
+          mkdir build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release \
+                -DAUDIO=ON \
+                -DRICHTEXT=ON \
+                -DBUNDLE_FONTS_CONF=ON ..
+          cmake --build . --parallel $(nproc)
+
+      - name: Build OpenFX-IO Plugins
+        run: |
+          cd openfx-io
+          if [ -f "CMakeLists.txt" ]; then
+            mkdir build && cd build
+            cmake -DCMAKE_BUILD_TYPE=Release ..
+            cmake --build . --parallel $(nproc)
+          else
+            make CONFIG=release -j$(nproc)
+          fi
+
+      - name: Build OpenFX-Misc Plugins
+        run: |
+          cd openfx-misc
+          if [ -f "CMakeLists.txt" ]; then
+            mkdir build && cd build
+            cmake -DCMAKE_BUILD_TYPE=Release ..
+            cmake --build . --parallel $(nproc)
+          else
+            make CONFIG=release -j$(nproc)
+          fi
+
+      - name: Build OpenFX-Arena Plugins
+        run: |
+          cd openfx-arena
+          if [ -f "CMakeLists.txt" ]; then
+            mkdir build && cd build
+            cmake -DCMAKE_BUILD_TYPE=Release ..
+            cmake --build . --parallel $(nproc)
+          else
+            make CONFIG=release -j$(nproc) || true
+          fi
+
+      - name: Build OpenFX-GMIC Plugins
+        run: |
+          cd openfx-gmic
+          if [ -f "CMakeLists.txt" ]; then
+            mkdir build && cd build
+            cmake -DCMAKE_BUILD_TYPE=Release ..
+            cmake --build . --parallel $(nproc)
+          else
+            make CONFIG=release -j$(nproc) || true
+          fi
+
+      # ====================================================
+      # 5. HARVEST DEPENDENCIES & PACKAGE PORTABLE TARBALL
+      # ====================================================
+      - name: Package Standalone Universal Tarball
+        run: |
+          PKG_NAME="Natron-2.5.0-Linux-arm64"
+          mkdir -p ${PKG_NAME}/bin
+          mkdir -p ${PKG_NAME}/lib
+          mkdir -p ${PKG_NAME}/Resources
+          mkdir -p ${PKG_NAME}/Plugins/OFX/Natron
+          mkdir -p ${PKG_NAME}/Plugins/PyPlugs
+
+          # A. Copy Executables
+          find natron-core/build -maxdepth 3 -type f -name "Natron*" -exec cp {} ${PKG_NAME}/bin/ \;
+
+          # B. Copy OpenColorIO Configs
+          if [ -d "natron-core/OpenColorIO-Configs" ]; then
+            cp -r natron-core/OpenColorIO-Configs ${PKG_NAME}/Resources/
+          fi
+
+          # C. Copy All 4 OpenFX Plugin Bundles
+          find openfx-io -name "*.ofx.bundle" -exec cp -r {} ${PKG_NAME}/Plugins/OFX/Natron/ \;
+          find openfx-misc -name "*.ofx.bundle" -exec cp -r {} ${PKG_NAME}/Plugins/OFX/Natron/ \;
+          find openfx-arena -name "*.ofx.bundle" -exec cp -r {} ${PKG_NAME}/Plugins/OFX/Natron/ \;
+          find openfx-gmic -name "*.ofx.bundle" -exec cp -r {} ${PKG_NAME}/Plugins/OFX/Natron/ \;
+
+          # D. Copy Community PyPlugs
+          rsync -av --exclude='.git*' community-pyplugs/ ${PKG_NAME}/Plugins/PyPlugs/
+
+          # E. Auto-Bundle Dynamic Shared Libraries (.so)
+          echo "Harvesting dynamic dependencies..."
+          TARGETS=$(find ${PKG_NAME} -type f \( -name "Natron*" -o -name "*.ofx" \))
+
+          for target in $TARGETS; do
+            ldd "$target" 2>/dev/null | grep "=>" | awk '{print $3}' | grep -v "^$" | while read -r lib; do
+              if [ -f "$lib" ]; then
+                case "$lib" in
+                  *libc.so*|*libpthread.so*|*libdl.so*|*libm.so*|*librt.so*|*libGL.so*|*libEGL.so*|*libdrm.so*|*libgbm.so*|*libX11.so*|*libxcb.so*)
+                    ;; # Exclude host-level GPU drivers & C library
+                  *)
+                    cp -L -n "$lib" ${PKG_NAME}/lib/ 2>/dev/null || true
+                    ;;
+                esac
+              fi
+            done
+          done
+
+          # F. Create Launcher Script
+          cat << 'EOF' > ${PKG_NAME}/run-natron.sh
+          #!/bin/bash
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          export LD_LIBRARY_PATH="${SCRIPT_DIR}/lib:${SCRIPT_DIR}/bin:${LD_LIBRARY_PATH}"
+          export OFX_PLUGIN_PATH="${SCRIPT_DIR}/Plugins/OFX/Natron:${OFX_PLUGIN_PATH}"
+          export NATRON_PLUGIN_PATH="${SCRIPT_DIR}/Plugins/PyPlugs:${NATRON_PLUGIN_PATH}"
+          export OCIO="${SCRIPT_DIR}/Resources/OpenColorIO-Configs/blender/config.ocio"
+
+          # Uncomment below if running inside Termux / PRoot / VNC without hardware OpenGL:
+          # export LIBGL_ALWAYS_SOFTWARE=1
+          # export GALLIUM_DRIVER=llvmpipe
+
+          exec "${SCRIPT_DIR}/bin/Natron" "$@"
+          EOF
+
+          chmod +x ${PKG_NAME}/run-natron.sh
+          chmod +x ${PKG_NAME}/bin/Natron* 2>/dev/null || true
+
+          # G. Compress Tarball
+          tar -czvf ${PKG_NAME}.tar.gz ${PKG_NAME}
+
+      # ====================================================
+      # 6. PUBLISH RELEASE TO GITHUB
+      # ====================================================
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v2.5.0-arm64-full
+          name: "Natron 2.5.0 Full ARM64 Suite (Direct Build)"
+          body: |
+            ### Natron 2.5.0 Full ARM64 Linux Build Suite
+
+            Built directly on a native Ubuntu 22.04 ARM64 runner.
+
+            - **Includes All 4 Official OpenFX Plugin Bundles:**
+              1. `openfx-io`
+              2. `openfx-misc`
+              3. `openfx-arena`
+              4. `openfx-gmic`
+            - **Includes Engine & Support:**
+              - Natron Core Engine (`RB-2.5` branch)
+              - OpenColorIO Configs
+              - Community PyPlugs Bundle
+              - Embedded dynamic library dependencies
+
+            #### Instructions:
+            ```bash
+            tar -xzvf Natron-2.5.0-Linux-arm64.tar.gz
+            cd Natron-2.5.0-Linux-arm64
+            ./run-natron.sh
+            ```
+          draft: true
+          files: Natron-2.5.0-Linux-arm64.tar.gz
