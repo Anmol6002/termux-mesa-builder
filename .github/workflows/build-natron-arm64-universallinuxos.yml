@@ -9,7 +9,7 @@ permissions:
 jobs:
   build-arm64:
     name: Build Natron Engine + All 4 Plugin Suites (ARM64)
-    runs-on: ubuntu-22.04-arm # Native ARM64 Ubuntu 22.04 Runner (No Docker needed!)
+    runs-on: ubuntu-22.04-arm # Native ARM64 Ubuntu 22.04 Runner
 
     steps:
       # ====================================================
@@ -67,6 +67,7 @@ jobs:
       # ====================================================
       - name: Install System Build Dependencies
         run: |
+          sudo add-apt-repository -y universe
           sudo apt-get update
           sudo apt-get install -y \
             git cmake build-essential pkg-config tar rsync wget \
@@ -74,10 +75,10 @@ jobs:
             libqt5opengl5-dev libqt5xmlpatterns5-dev \
             libboost-serialization-dev libboost-system-dev libboost-thread-dev libboost-filesystem-dev libboost-all-dev \
             libcairo2-dev libexpat1-dev libpixman-1-dev libpango1.0-dev fontconfig libfontconfig1-dev \
-            python3-dev libshiboken2-dev libpyside2-dev python3-pyside2.qtwidgets python3-qtpy \
+            python3-dev libshiboken2-dev libpyside2-dev python3-pyside2.qtcore python3-pyside2.qtgui python3-pyside2.qtwidgets python3-qtpy \
             libopenimageio-dev libopencolorio-dev libopenexr-dev libraw-dev libpng-dev libjpeg-dev libtiff-dev \
             libswscale-dev libavcodec-dev libavformat-dev libavutil-dev libswresample-dev libsox-dev \
-            libpoppler-glib-dev libfftw3-dev libcurl4-openssl-dev libglog-dev libceres-dev libseccomp-dev libunwind-dev libxml2-dev
+            libpoppler-glib-dev libfftw3-dev libcurl4-openssl-dev libgoogle-glog-dev libceres-dev libseccomp-dev libunwind-dev libxml2-dev
 
       # ====================================================
       # 3. DOWNLOAD & PREPARE OPENCOLORIO CONFIGS
@@ -96,7 +97,7 @@ jobs:
       - name: Build Natron Engine
         run: |
           cd natron-core
-          mkdir build && cd build
+          mkdir -p build && cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
                 -DAUDIO=ON \
                 -DRICHTEXT=ON \
@@ -107,7 +108,7 @@ jobs:
         run: |
           cd openfx-io
           if [ -f "CMakeLists.txt" ]; then
-            mkdir build && cd build
+            mkdir -p build && cd build
             cmake -DCMAKE_BUILD_TYPE=Release ..
             cmake --build . --parallel $(nproc)
           else
@@ -118,7 +119,7 @@ jobs:
         run: |
           cd openfx-misc
           if [ -f "CMakeLists.txt" ]; then
-            mkdir build && cd build
+            mkdir -p build && cd build
             cmake -DCMAKE_BUILD_TYPE=Release ..
             cmake --build . --parallel $(nproc)
           else
@@ -129,7 +130,7 @@ jobs:
         run: |
           cd openfx-arena
           if [ -f "CMakeLists.txt" ]; then
-            mkdir build && cd build
+            mkdir -p build && cd build
             cmake -DCMAKE_BUILD_TYPE=Release ..
             cmake --build . --parallel $(nproc)
           else
@@ -140,7 +141,7 @@ jobs:
         run: |
           cd openfx-gmic
           if [ -f "CMakeLists.txt" ]; then
-            mkdir build && cd build
+            mkdir -p build && cd build
             cmake -DCMAKE_BUILD_TYPE=Release ..
             cmake --build . --parallel $(nproc)
           else
@@ -178,14 +179,14 @@ jobs:
 
           # E. Auto-Bundle Dynamic Shared Libraries (.so)
           echo "Harvesting dynamic dependencies..."
-          TARGETS=$(find ${PKG_NAME} -type f \( -name "Natron*" -o -name "*.ofx" \))
+          TARGETS=$(find ${PKG_NAME} -type f \( -name "Natron*" -o -name "*.ofx" -o -name "*.bundle" \))
 
           for target in $TARGETS; do
             ldd "$target" 2>/dev/null | grep "=>" | awk '{print $3}' | grep -v "^$" | while read -r lib; do
               if [ -f "$lib" ]; then
                 case "$lib" in
                   *libc.so*|*libpthread.so*|*libdl.so*|*libm.so*|*librt.so*|*libGL.so*|*libEGL.so*|*libdrm.so*|*libgbm.so*|*libX11.so*|*libxcb.so*)
-                    ;; # Exclude host-level GPU drivers & C library
+                    ;; # Exclude host GPU drivers & core C library
                   *)
                     cp -L -n "$lib" ${PKG_NAME}/lib/ 2>/dev/null || true
                     ;;
@@ -248,3 +249,4 @@ jobs:
             ```
           draft: true
           files: Natron-2.5.0-Linux-arm64.tar.gz
+
