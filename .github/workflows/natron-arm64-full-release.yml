@@ -10,7 +10,7 @@ jobs:
   build:
     name: Build Natron on Linux (Native ARM64)
     # Uses GitHub's native ARM64 Ubuntu runner
-    runs-on: ubuntu-24.04-arm64
+    runs-on: ubuntu-24.04-arm
     
     steps:
       # Step 1: Clone Natron Core Engine
