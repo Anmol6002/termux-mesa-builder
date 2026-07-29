@@ -1,4 +1,4 @@
-name: Build Universal Natron ARM64 (Bulletproof Direct Build)
+name: Build Universal Natron ARM64 (Direct Native Build)
 
 on:
   workflow_dispatch: # Manual trigger from GitHub UI
@@ -116,29 +116,37 @@ jobs:
                 -DBUNDLE_FONTS_CONF=ON ..
           cmake --build . --parallel $(nproc)
 
-      - name: Build OpenFX-IO Plugins
+      - name: Prepare OFX Staging Directory
+        run: |
+          mkdir -p ${{ github.workspace }}/staged_ofx_plugins
+
+      - name: Build & Install OpenFX-IO Plugins
         run: |
           cd openfx-io
           git submodule update --init --recursive || true
-          make CONFIG=release -j$(nproc) || make CONFIG=release -j1 || true
+          make CONFIG=release BITS=64 -k -j$(nproc) || true
+          make install PLUGINPATH=${{ github.workspace }}/staged_ofx_plugins CONFIG=release BITS=64 || true
 
-      - name: Build OpenFX-Misc Plugins
+      - name: Build & Install OpenFX-Misc Plugins
         run: |
           cd openfx-misc
           git submodule update --init --recursive || true
-          make CONFIG=release -j$(nproc) || make CONFIG=release -j1 || true
+          make CONFIG=release BITS=64 -k -j$(nproc) || true
+          make install PLUGINPATH=${{ github.workspace }}/staged_ofx_plugins CONFIG=release BITS=64 || true
 
-      - name: Build OpenFX-Arena Plugins
+      - name: Build & Install OpenFX-Arena Plugins
         run: |
           cd openfx-arena
           git submodule update --init --recursive || true
-          make CONFIG=release -j$(nproc) || make CONFIG=release -j1 || true
+          make CONFIG=release BITS=64 -k -j$(nproc) || true
+          make install PLUGINPATH=${{ github.workspace }}/staged_ofx_plugins CONFIG=release BITS=64 || true
 
-      - name: Build OpenFX-GMIC Plugins
+      - name: Build & Install OpenFX-GMIC Plugins
         run: |
           cd openfx-gmic
           git submodule update --init --recursive || true
-          make CONFIG=release -j$(nproc) || make CONFIG=release -j1 || true
+          make CONFIG=release BITS=64 -k -j$(nproc) || true
+          make install PLUGINPATH=${{ github.workspace }}/staged_ofx_plugins CONFIG=release BITS=64 || true
 
       # ====================================================
       # 5. HARVEST DEPENDENCIES & PACKAGE PORTABLE TARBALL
@@ -155,7 +163,7 @@ jobs:
           mkdir -p ${PKG_NAME}/plugins/imageformats
           mkdir -p ${PKG_NAME}/plugins/iconengines
 
-          # A. Copy Executables Specifically
+          # A. Copy Executables
           find natron-core/build -maxdepth 3 -type f -executable \( -name "Natron" -o -name "NatronRenderer" -o -name "natron-python" \) -exec cp {} ${PKG_NAME}/bin/ \;
 
           # B. Copy OpenColorIO Configs
@@ -163,11 +171,11 @@ jobs:
             cp -r natron-core/OpenColorIO-Configs ${PKG_NAME}/Resources/
           fi
 
-          # C. Copy All 4 OpenFX Plugin Bundles
-          find openfx-io -name "*.ofx.bundle" -exec cp -r {} ${PKG_NAME}/Plugins/OFX/Natron/ \;
-          find openfx-misc -name "*.ofx.bundle" -exec cp -r {} ${PKG_NAME}/Plugins/OFX/Natron/ \;
-          find openfx-arena -name "*.ofx.bundle" -exec cp -r {} ${PKG_NAME}/Plugins/OFX/Natron/ \;
-          find openfx-gmic -name "*.ofx.bundle" -exec cp -r {} ${PKG_NAME}/Plugins/OFX/Natron/ \;
+          # C. Copy Staged OpenFX Plugins & Fallback Search
+          if [ -d "staged_ofx_plugins" ]; then
+            cp -r staged_ofx_plugins/* ${PKG_NAME}/Plugins/OFX/Natron/ 2>/dev/null || true
+          fi
+          find openfx-io openfx-misc openfx-arena openfx-gmic -name "*.ofx.bundle" -exec cp -r {} ${PKG_NAME}/Plugins/OFX/Natron/ \; 2>/dev/null || true
 
           # D. Copy Community PyPlugs
           rsync -av --exclude='.git*' community-pyplugs/ ${PKG_NAME}/Plugins/PyPlugs/
@@ -202,7 +210,7 @@ jobs:
             done
           done
 
-          # H. Create Launcher Script (Includes Qt, Python, & Software OpenGL options)
+          # H. Create Launcher Script
           cat << 'EOF' > ${PKG_NAME}/run-natron.sh
           #!/bin/bash
           SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
