@@ -116,37 +116,36 @@ jobs:
                 -DBUNDLE_FONTS_CONF=ON ..
           cmake --build . --parallel $(nproc)
 
-      - name: Prepare OFX Staging Directory
+      - name: Build & Install All OpenFX Plugin Suites
         run: |
-          mkdir -p ${{ github.workspace }}/staged_ofx_plugins
+          git config --global --add safe.directory "*"
+          STAGE_DIR="${{ github.workspace }}/staged_ofx_plugins"
+          mkdir -p ${STAGE_DIR}
 
-      - name: Build & Install OpenFX-IO Plugins
-        run: |
-          cd openfx-io
-          git submodule update --init --recursive || true
-          make CONFIG=release BITS=64 -k -j$(nproc) || true
-          make install PLUGINPATH=${{ github.workspace }}/staged_ofx_plugins CONFIG=release BITS=64 || true
+          for repo in openfx-io openfx-misc openfx-arena openfx-gmic; do
+            echo "=========================================="
+            echo "Building $repo..."
+            echo "=========================================="
+            cd ${{ github.workspace }}/$repo
+            git submodule update --init --recursive || true
+            
+            # Compile with OpenFX release flags
+            make CONFIG=release BITS=64 -k -j$(nproc) || make CONFIG=release BITS=64 -k || true
+            
+            # Install into staging area
+            make install PLUGINPATH=${STAGE_DIR} CONFIG=release BITS=64 || true
+            
+            # Harvest compiled bundles from Linux-64-release directories
+            if [ -d "Linux-64-release" ]; then
+              cp -r Linux-64-release/*.bundle ${STAGE_DIR}/ 2>/dev/null || true
+            fi
+            find . -name "*.ofx.bundle" -exec cp -r {} ${STAGE_DIR}/ \; 2>/dev/null || true
+          done
 
-      - name: Build & Install OpenFX-Misc Plugins
-        run: |
-          cd openfx-misc
-          git submodule update --init --recursive || true
-          make CONFIG=release BITS=64 -k -j$(nproc) || true
-          make install PLUGINPATH=${{ github.workspace }}/staged_ofx_plugins CONFIG=release BITS=64 || true
-
-      - name: Build & Install OpenFX-Arena Plugins
-        run: |
-          cd openfx-arena
-          git submodule update --init --recursive || true
-          make CONFIG=release BITS=64 -k -j$(nproc) || true
-          make install PLUGINPATH=${{ github.workspace }}/staged_ofx_plugins CONFIG=release BITS=64 || true
-
-      - name: Build & Install OpenFX-GMIC Plugins
-        run: |
-          cd openfx-gmic
-          git submodule update --init --recursive || true
-          make CONFIG=release BITS=64 -k -j$(nproc) || true
-          make install PLUGINPATH=${{ github.workspace }}/staged_ofx_plugins CONFIG=release BITS=64 || true
+          echo "=========================================="
+          echo "STAGED OPENFX PLUGINS LIST:"
+          echo "=========================================="
+          ls -la ${STAGE_DIR}/
 
       # ====================================================
       # 5. HARVEST DEPENDENCIES & PACKAGE PORTABLE TARBALL
@@ -171,11 +170,11 @@ jobs:
             cp -r natron-core/OpenColorIO-Configs ${PKG_NAME}/Resources/
           fi
 
-          # C. Copy Staged OpenFX Plugins & Fallback Search
-          if [ -d "staged_ofx_plugins" ]; then
-            cp -r staged_ofx_plugins/* ${PKG_NAME}/Plugins/OFX/Natron/ 2>/dev/null || true
+          # C. Copy Staged OpenFX Plugins
+          STAGE_DIR="${{ github.workspace }}/staged_ofx_plugins"
+          if [ -d "${STAGE_DIR}" ]; then
+            cp -r ${STAGE_DIR}/* ${PKG_NAME}/Plugins/OFX/Natron/ 2>/dev/null || true
           fi
-          find openfx-io openfx-misc openfx-arena openfx-gmic -name "*.ofx.bundle" -exec cp -r {} ${PKG_NAME}/Plugins/OFX/Natron/ \; 2>/dev/null || true
 
           # D. Copy Community PyPlugs
           rsync -av --exclude='.git*' community-pyplugs/ ${PKG_NAME}/Plugins/PyPlugs/
