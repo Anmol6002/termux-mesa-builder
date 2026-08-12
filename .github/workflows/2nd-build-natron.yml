@@ -17,7 +17,7 @@ jobs:
             build-essential libboost-serialization-dev libboost-system-dev \
             libexpat1-dev libcairo2-dev qt5-qmake qtbase5-dev python3-dev \
             libshiboken2-dev libpyside2-dev python3-pyside2.qtwidgets python3-qtpy \
-            cmake git pkg-config wget curl \
+            python-is-python3 patch cmake git pkg-config wget curl \
             qtdeclarative5-dev qtmultimedia5-dev libqt5svg5-dev libqt5opengl5-dev qttools5-dev \
             libgl1-mesa-dev libglu1-mesa-dev libopencolorio-dev libopenimageio-dev \
             libavcodec-dev libavformat-dev libswscale-dev libavutil-dev \
@@ -42,7 +42,7 @@ jobs:
           sed -i 's/uc->uc_mcontext.gregs\[REG_EIP\]/uc->uc_mcontext.pc/g' Engine/AppManager.cpp
           sed -i 's/uc->uc_mcontext.gregs\[REG_RIP\]/uc->uc_mcontext.pc/g' Engine/AppManager.cpp
 
-          # 2. Download OpenColorIO-Configs (INSTALL_LINUX.md)
+          # 2. Download OpenColorIO-Configs
           wget https://github.com/NatronGitHub/OpenColorIO-Configs/archive/Natron-v2.5.tar.gz
           tar xzf Natron-v2.5.tar.gz
           mv OpenColorIO-Configs-Natron-v2.5 OpenColorIO-Configs
@@ -63,10 +63,11 @@ jobs:
         run: |
           PKG_DIR="$(pwd)/pkg_natron"
 
-          # 1. Build openfx-io
+          # 1. Build openfx-io (Build SeExpr headers first to prevent race condition)
           git clone --recursive https://github.com/NatronGitHub/openfx-io.git
           cd openfx-io
           find . -name "Makefile.master" -exec sed -i 's/-m64//g' {} +
+          make -C SeExpr CONFIG=release ARCHFLAGS=
           make CONFIG=release ARCHFLAGS= -j$(nproc)
           find . -type d -name "*.bundle" -exec cp -r {} "${PKG_DIR}/usr/OFX/Plugins/" \;
           cd ..
