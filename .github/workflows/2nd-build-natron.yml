@@ -36,7 +36,7 @@ jobs:
 
           # 1. Get Natron & Submodules
           git clone -b RB-2.5 https://github.com/NatronGitHub/Natron && cd Natron
-          git submodule update -i --recursive
+          git submodule update --init --recursive
 
           # Patch ARM64 signal context in AppManager.cpp for Linux ARM64
           sed -i 's/uc->uc_mcontext.gregs\[REG_EIP\]/uc->uc_mcontext.pc/g' Engine/AppManager.cpp
