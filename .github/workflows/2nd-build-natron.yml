@@ -33,6 +33,10 @@ jobs:
           git clone -b RB-2.5 --recursive https://github.com/NatronGitHub/Natron.git natron-src
           cd natron-src
 
+          # Patch-1. ARM64 Signal Handler in AppManager.cpp (Replaces x86 REG_EIP/REG_RIP with ARM64 pc)
+          sed -i 's/uc->uc_mcontext.gregs\[REG_EIP\]/uc->uc_mcontext.pc/g' Engine/AppManager.cpp
+          sed -i 's/uc->uc_mcontext.gregs\[REG_RIP\]/uc->uc_mcontext.pc/g' Engine/AppManager.cpp         
+          
           # 2. Download & Extract OpenColorIO-Configs (Mandatory for Color Spaces)
           wget https://github.com/NatronGitHub/OpenColorIO-Configs/archive/Natron-v2.5.tar.gz
           tar xzf Natron-v2.5.tar.gz
