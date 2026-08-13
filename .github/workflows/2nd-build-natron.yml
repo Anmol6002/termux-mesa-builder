@@ -63,11 +63,11 @@ jobs:
         run: |
           PKG_DIR="$(pwd)/pkg_natron"
 
-          # 1. Build openfx-io (Build SeExpr headers first to prevent race condition)
+          # 1. Build openfx-io
           git clone --recursive https://github.com/NatronGitHub/openfx-io.git
           cd openfx-io
           find . -name "Makefile.master" -exec sed -i 's/-m64//g' {} +
-          make -C SeExpr CONFIG=release ARCHFLAGS=
+          (cd SeExpr && python3 makeBuiltins.py) 2>/dev/null || (cd SeExpr && make SeExprBuiltins.h) 2>/dev/null || true
           make CONFIG=release ARCHFLAGS= -j$(nproc)
           find . -type d -name "*.bundle" -exec cp -r {} "${PKG_DIR}/usr/OFX/Plugins/" \;
           cd ..
