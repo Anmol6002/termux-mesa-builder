@@ -23,7 +23,7 @@ jobs:
           libopenexr-dev libraw-dev libheif-dev librsvg2-dev libpango1.0-dev libfontconfig1-dev \
           libglew-dev libcmocka-dev libfftw3-dev libcurl4-openssl-dev libssl-dev \
           libmagick++-dev libpoppler-glib-dev libzip-dev liblcms2-dev libsox-dev libxml2-dev \
-          libwebp-dev libcdr-dev librevenge-dev libseexpr-dev \
+          libwebp-dev libcdr-dev librevenge-dev \
           libpng-dev libjpeg-dev libtiff-dev
 
       - name: Build Natron Engine (Strictly following INSTALL_LINUX.md)
