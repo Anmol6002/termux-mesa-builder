@@ -67,6 +67,7 @@ jobs:
           git clone --recursive https://github.com/NatronGitHub/openfx-io.git
           cd openfx-io
           find . -name "Makefile.master" -exec sed -i 's/-m64//g' {} +
+          (cd SeExpr && python3 makeBuiltins.py) 2>/dev/null || (cd SeExpr && make SeExprBuiltins.h) 2>/dev/null || true
           SEEXPR_INC="-I$(pwd) -I$(pwd)/SeExpr -I$(pwd)/SeExpr/seexpr -I$(pwd)/SeExpr/seexpr/src/SeExpr -I$(pwd)/SeExpr/src/SeExpr"
           make CONFIG=release ARCHFLAGS= CXXFLAGS_ADD="$SEEXPR_INC" -j$(nproc)
           find . -type d -name "*.bundle" -exec cp -r {} "${PKG_DIR}/usr/OFX/Plugins/" \;
