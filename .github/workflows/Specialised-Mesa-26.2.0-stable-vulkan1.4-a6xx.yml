@@ -1,4 +1,4 @@
-name: Specialized version With Adreno 613 officially added,For A6xx devices with vulkan 1.4 support 
+name: Specialized mesa-stable version With Adreno 613 officially added,For A6xx devices with vulkan 1.4 support 
 
 on:
   workflow_dispatch:
