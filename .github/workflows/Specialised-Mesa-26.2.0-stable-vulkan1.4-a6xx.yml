@@ -1,0 +1,66 @@
+name: Specialized version With Adreno 613 officially added,For A6xx devices with vulkan 1.4 support 
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write 
+    steps:
+    
+      - name: Checkout termux-packages
+        run: git clone --depth 1 -b Anmol6002-patch-1 https://github.com/Anmol6002/termux-packages.git
+
+      - name: Inject Manual Logic Repairs
+        run: |
+          cd termux-packages/packages/mesa
+          
+          # Use a heredoc. Note: EOF must be flush with the left margin!
+          cat >> build.sh <<'EOF'
+          termux_step_post_get_source() {
+          # --- REPAIR 1: FORCE VULKAN 1.4 API VERSION ---
+          if [ -f "src/freedreno/vulkan/tu_device.cc" ]; then
+          echo "Forcing apiVersion to 1.4 and unlocking version gatesSurgically unlocking all Vulkan versions and features for Adreno 613,A6xx..."
+          # Force the version string to 1.4 (TU_API_VERSION)
+          sed -i 's/props->apiVersion = tu_has_multiview(pdevice) ?/props->apiVersion = TU_API_VERSION; \/\//g' src/freedreno/vulkan/tu_device.cc
+          # Force the 1.1 and Multiview internal checks to always return true
+          sed -i 's/return tu_has_multiview(device);/return true;/' src/freedreno/vulkan/tu_device.cc
+          sed -i 's/return device->info->props.has_hw_multiview || TU_DEBUG(NOCONFORM);/return true;/' src/freedreno/vulkan/tu_device.cc
+          # Bypass 'chip >= 7' requirements for conformance version reporting
+          sed -i 's/if (pdevice->info->chip >= 7)/if (true)/g' src/freedreno/vulkan/tu_device.cc
+          fi
+          # --- REPAIR 2: UNLOCK PROTECTED FEATURES (Bypass family checks) ---
+          # This allows 6xx to use features usually limited to 7xx/8xx in the source
+          if [ -f "src/freedreno/vulkan/tu_device.cc" ]; then
+          echo "Removing chip-family feature gates..."
+          sed -i 's/pdevice->info->chip >= 7/pdevice->info->chip >= 6/g' src/freedreno/vulkan/tu_device.cc
+          sed -i 's/pdevice->info->chip >= 8/pdevice->info->chip >= 6/g' src/freedreno/vulkan/tu_device.cc
+          sed -i 's/device->info->chip >= 7/device->info->chip >= 6/g' src/freedreno/vulkan/tu_device.cc
+          fi
+          }
+          EOF
+          
+      - name: Build Mesa package
+        run: |
+          cd termux-packages
+          # Start the build. Termux automatically pulls its Docker image and cross-compiles!
+          ./scripts/run-docker.sh ./build-package.sh -a aarch64 -f -I -C mesa
+      - name: Upload DEB packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: termux-mesa-stable-debs-specialized
+          path: termux-packages/output/*.deb
+          
+      - name: Create Manual Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: termux-packages/output/*.deb
+          tag_name: "v1.4-specialised-${{ github.run_number }}" # Automatically generates a unique tag name
+          name: "Specialised Force vulkan 1.4 for a6xx devices by gpu family checks bypass Build #${{ github.run_number }})"
+          body: |
+            force vulkan 1.4 and a613 and a6xx specialised build tested on a613 working 
+            Custom Mesa build from official mesa 26.2.0 stable release https://archive.mesa3d.org
+          draft: false
+          prerelease: false
